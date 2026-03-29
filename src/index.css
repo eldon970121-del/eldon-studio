@@ -1,0 +1,90 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --site-bg: #191a1f;
+    --site-bg-soft: #131419;
+    --site-bg-deep: #0f1014;
+    --site-panel: rgba(255, 255, 255, 0.045);
+    --site-panel-strong: #21242c;
+    --site-panel-soft: rgba(255, 255, 255, 0.03);
+    --site-border: rgba(255, 255, 255, 0.1);
+    --site-border-strong: rgba(255, 255, 255, 0.16);
+    --site-border-soft: rgba(255, 255, 255, 0.06);
+    --site-accent: #7c9cff;
+    --site-accent-strong: #4d90fe;
+    --site-accent-soft: rgba(124, 156, 255, 0.18);
+    --site-text: #f5f7fb;
+    --site-muted: #97a0b2;
+    --site-muted-strong: #cfd6e4;
+    --site-glow: rgba(77, 144, 254, 0.16);
+    --site-shadow: 0 24px 90px rgba(0, 0, 0, 0.28);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply font-body antialiased;
+    min-height: 100vh;
+    color: var(--site-text);
+    background:
+      radial-gradient(circle at top left, rgba(124, 156, 255, 0.2), transparent 26%),
+      radial-gradient(circle at 85% 20%, rgba(124, 156, 255, 0.12), transparent 18%),
+      radial-gradient(circle at bottom right, rgba(96, 122, 255, 0.1), transparent 20%),
+      linear-gradient(180deg, #1a1b22 0%, #14151a 48%, #101116 100%);
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+
+  ::selection {
+    background: rgba(77, 144, 254, 0.28);
+    color: var(--site-text);
+  }
+
+  body::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  body::-webkit-scrollbar-track {
+    background: #11141b;
+  }
+
+  body::-webkit-scrollbar-thumb {
+    background: rgba(151, 160, 178, 0.22);
+    border-radius: 9999px;
+  }
+}
+
+@layer components {
+  .micro-button {
+    @apply transition duration-200 ease-out active:scale-[0.98];
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Manrope", sans-serif;
+  }
+
+  .font-body {
+    font-family: "Manrope", sans-serif;
+  }
+
+  .shadow-soft {
+    box-shadow: var(--site-shadow);
+  }
+}
