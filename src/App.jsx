@@ -1,16 +1,44 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useDropzone } from "react-dropzone";
+import React, { useEffect, useMemo, useState } from "react";
+import { usePersistence } from "./hooks/usePersistence";
+import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
+import {
+  getLocalizedText,
+  toLocalizedField,
+  isEphemeralImageUrl,
+} from "./utils/siteHelpers";
+import { deleteImagesFromCloud, getStoragePathFromUrl } from "./services/cloudStorage";
+import { AuthModal } from "./components/auth/AuthModal";
+import { DetailUtilityBar, ImmersiveNavbar } from "./components/navigation/SiteNavigation";
+import { HeroCover } from "./components/sections/HeroCover";
+import { HeroSection } from "./components/sections/HeroSection";
+import { PracticeSection } from "./components/sections/PracticeSection";
+import { StorySection } from "./components/sections/StorySection";
+import { PortfolioMasonry } from "./components/sections/PortfolioMasonry";
+import { BookingProjectsSection } from "./components/sections/BookingProjectsSection";
+import { LuminaLab } from "./components/sections/LuminaLab";
+import { AdminDataPanel } from "./components/admin/AdminDataPanel";
+import { Footer } from "./components/layout/Footer";
+import { PortfolioEditorModal } from "./components/modals/PortfolioEditorModal";
+import { ProfileEditorModal } from "./components/modals/ProfileEditorModal";
+import { ConfirmDialog } from "./components/modals/ConfirmDialog";
 
-const DB_NAME = "eldon-studio-site";
-const STORE_NAME = "persistent-state";
-const STORAGE_KEY = "eldon-portfolios";
-const LOCAL_STORAGE_KEY = "eldon-portfolios-fallback";
-const PROFILE_STORAGE_KEY = "eldon-profile";
-const PROFILE_LOCAL_STORAGE_KEY = "eldon-profile-fallback";
-const LOCALE_STORAGE_KEY = "eldon-locale";
 const LUMINA_URL = import.meta.env.VITE_LUMINA_URL || "http://127.0.0.1:5173";
-const BACKUP_FILE_TYPE = "eldon-studio-backup";
-const BACKUP_FILE_VERSION = 1;
+const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || "").trim().toLowerCase();
+const DetailView = React.lazy(() =>
+  import("./components/detail/DetailView").then((m) => ({ default: m.DetailView })),
+);
+const LuminaLabPage = React.lazy(() =>
+  import("./components/lab/LuminaLabPage").then((m) => ({ default: m.LuminaLabPage })),
+);
+const LuminaReport = React.lazy(() =>
+  import("./components/lab/LuminaReport").then((m) => ({ default: m.LuminaReport })),
+);
+const AdminDashboardPage = React.lazy(() =>
+  import("./pages/AdminDashboardPage").then((m) => ({ default: m.AdminDashboardPage })),
+);
+const ClientPortalPage = React.lazy(() =>
+  import("./pages/ClientPortalPage").then((m) => ({ default: m.ClientPortalPage })),
+);
 
 const fallbackPortfolioContent = {
   title: {
@@ -44,6 +72,7 @@ const initialProfile = {
 const initialPortfolios = [
   {
     id: 1,
+    narrative: "STUDIO",
     title: {
       en: "Male Portraiture",
       zh: "男性肖像",
@@ -72,6 +101,7 @@ const initialPortfolios = [
   },
   {
     id: 2,
+    narrative: "STUDIO",
     title: {
       en: "Emotional Narratives",
       zh: "情绪叙事",
@@ -100,6 +130,7 @@ const initialPortfolios = [
   },
   {
     id: 3,
+    narrative: "STUDIO",
     title: {
       en: "Light & Shadow",
       zh: "光影结构",
@@ -128,6 +159,7 @@ const initialPortfolios = [
   },
   {
     id: 4,
+    narrative: "EXPLORATION",
     title: {
       en: "Urban Stillness",
       zh: "城市静场",
@@ -156,6 +188,7 @@ const initialPortfolios = [
   },
   {
     id: 5,
+    narrative: "STUDIO",
     title: {
       en: "Quiet Interiors",
       zh: "静室叙景",
@@ -184,6 +217,7 @@ const initialPortfolios = [
   },
   {
     id: 6,
+    narrative: "EXPLORATION",
     title: {
       en: "Midnight Silence",
       zh: "午夜静默",
@@ -210,20 +244,68 @@ const initialPortfolios = [
       },
     ],
   },
+  {
+    id: 7,
+    narrative: "ARCHIVE",
+    title: {
+      en: "Street Documentary",
+      zh: "街头纪实",
+    },
+    description: {
+      en: "A documentary series shot across three cities — unposed, uncurated, and irreversibly honest.",
+      zh: "横跨三座城市拍摄的纪实系列——无摆拍、无筛选，带着不可逆的诚实。",
+    },
+    images: [
+      {
+        id: 701,
+        url: "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=1600&q=80",
+        isCover: true,
+      },
+      {
+        id: 702,
+        url: "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&w=1600&q=80",
+        isCover: false,
+      },
+    ],
+  },
+  {
+    id: 8,
+    narrative: "ARCHIVE",
+    title: {
+      en: "Cultural Fragments",
+      zh: "文化碎片",
+    },
+    description: {
+      en: "Multi-image stories from cultural gatherings, performances, and rituals captured over two years.",
+      zh: "两年间记录的文化聚会、演出与仪式，以多图叙事呈现。",
+    },
+    images: [
+      {
+        id: 801,
+        url: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1600&q=80",
+        isCover: true,
+      },
+      {
+        id: 802,
+        url: "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1600&q=80",
+        isCover: false,
+      },
+    ],
+  },
 ];
 
 const practiceRows = [
   {
-    label: { en: "Approach", zh: "工作方式" },
-    value: { en: "Portrait / Editorial / Documentary", zh: "肖像 / 编辑 / 纪实" },
+    label: { en: "Discipline", zh: "拍摄方向" },
+    value: { en: "Portrait · Editorial · Campaign", zh: "肖像 · 编辑摄影 · Campaign" },
   },
   {
     label: { en: "Based In", zh: "常驻城市" },
-    value: { en: "Shanghai / Tokyo", zh: "上海 / 东京" },
+    value: { en: "Shanghai · Tokyo", zh: "上海 · 东京" },
   },
   {
-    label: { en: "Bookings", zh: "预约状态" },
-    value: { en: "Selected Projects Only", zh: "仅接受精选项目" },
+    label: { en: "Commissions", zh: "委托状态" },
+    value: { en: "Selected Projects Only", zh: "仅接受精选委托" },
   },
 ];
 
@@ -243,6 +325,42 @@ const sideProjects = [
       zh: "用于长期肖像系列的情绪参考、布光研究与片段资料整理系统。",
     },
     href: "#footer",
+  },
+];
+
+const manifestoData = [
+  {
+    id: "light",
+    num: "01",
+    title: { en: "LIGHT", zh: "光" },
+    description: {
+      en: "Light is treated as a primary medium — shaped, withheld, and precisely directed to construct the three-dimensional depth that separates a portrait from a record.",
+      zh: "光是第一介质，而非布景辅助。在我们的工作中，光被塑造、保留与精确投放，以构建让肖像区别于记录影像的立体纵深。",
+    },
+    bgImage:
+      "https://images.unsplash.com/photo-1604079628040-94301bb21b91?q=80&w=1000&auto=format&fit=crop",
+  },
+  {
+    id: "emotion",
+    num: "02",
+    title: { en: "PRESENCE", zh: "在场感" },
+    description: {
+      en: "We read the intervals between directions — the weight of an exhale, the fraction of a second where something unguarded surfaces and the frame becomes true.",
+      zh: "我们阅读每一次指令间隙中的沉默——一次呼气的重量，某个戒备松弛的瞬间。正是那一刻，画面变得真实。",
+    },
+    bgImage:
+      "https://images.unsplash.com/photo-1516205651411-aef33a44f7c2?q=80&w=1000&auto=format&fit=crop",
+  },
+  {
+    id: "timeless",
+    num: "03",
+    title: { en: "PERMANENCE", zh: "永续性" },
+    description: {
+      en: "The work is stripped of trend, transient styling, and anything that dates the image before the session ends. What remains should hold for decades.",
+      zh: "我们刻意剥除一切流行滤镜与过渡性造型选择。任何会让作品快速老化的元素都会被排除在外。留存下来的，应当历经数十年而不失其力量。",
+    },
+    bgImage:
+      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop",
   },
 ];
 
@@ -323,6 +441,9 @@ const siteCopy = {
       titleTooLong: "Title must be 90 characters or fewer.",
       selectImageFirst: "Select at least one local image before creating a portfolio.",
       saveFailed: "Saving failed. Try again.",
+      uploadFailed: "Image upload failed. Check Supabase storage settings and try again.",
+      supabaseConfigMissing:
+        "Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local.",
       dataTools: "Data Backup",
       dataToolsText:
         "Export the current browser archive as a JSON backup, or restore a previously exported file without leaving admin mode.",
@@ -347,71 +468,140 @@ const siteCopy = {
         "A newly added sequence shaped by atmosphere, restraint, and portrait rhythm.",
     },
     hero: {
-      cinematicDirection: "Cinematic portrait direction",
-      navArchive: "Archive",
-      navBooking: "Booking",
+      cinematicDirection: "Cinematic Portrait Direction",
+      navPortfolio: "Portfolio",
+      navApproach: "Approach",
+      navCommission: "Commission",
+      navStudio: "Studio",
+      navArchive: "Portfolio",
+      navAbout: "Studio",
+      navBooking: "Commission",
+      navLab: "LAB",
       navLumina: "Lumina App",
-      visualDirection: "Visual direction 2026",
+      scrollExplore: "Scroll to explore",
+      adminEntry: "ADM",
+      modulesLabel: "Studio Modules",
+      modulesHeading: "A quieter system sits behind the archive.",
+      modulesText:
+        "The website works as a presentation layer, a controlled image archive, and a direct handoff surface for the Lumina workflow.",
+      modulesStatsPortfolios: "Series in archive",
+      modulesStatsImages: "Frames managed",
+      moduleArchiveTitle: "Image Archive",
+      moduleArchiveText: "Browser-side uploads, cover selection, lightbox review, and resilient local persistence.",
+      moduleLanguageTitle: "Bilingual Control",
+      moduleLanguageText: "English and Chinese remain strictly separated in the interface while sharing one normalised data model.",
+      moduleLuminaTitle: "Lumina Integration",
+      moduleLuminaText: "Commission briefs and project handoffs route directly into the Lumina scheduling system.",
+      visualDirection: "2026 · Visual Direction",
       heading:
-        "Portraits framed with restraint, atmosphere, and a cleaner emotional signal.",
-      viewArchive: "View Archive",
+        "Portraits shaped by restraint, light, and a deliberate emotional register.",
+      viewArchive: "View Portfolio",
       openLumina: "Open Lumina",
-      studioNote: "Studio note",
+      studioNote: "Studio",
       studioNoteText:
-        "Each commission is treated as a controlled sequence rather than a one-off image.",
-      portraitSystem: "Portrait system",
-      creativeStance: "Creative stance",
+        "Each commission resolves as a controlled sequence — not as a collection of isolated frames.",
+      portraitSystem: "Portrait System",
+      creativeStance: "Creative Stance",
       creativeStanceText:
-        "Built for private commissions, editorial portraiture, and art-directed identity work where styling remains secondary to expression.",
+        "Available for private commissions, editorial portraiture, and art-directed identity work. Styling is always secondary to expression.",
       workflow: "Workflow",
       workflowText:
-        "Website archive, local upload management, and direct handoff into Lumina scheduling.",
+        "Archive management, post-production delivery, and direct handoff into the Lumina scheduling system.",
       studioPreview: "Studio Preview",
-      selectedFrame: "Selected Frame",
-      emptyTitle: "Upload local work to start shaping the archive.",
+      selectedFrame: "Frame",
+      emptyTitle: "Upload work to begin building the archive.",
+      luminaLabCta: "Explore Aesthetic Analysis Lab",
     },
     practice: {
-      label: "Practice",
+      label: "Approach",
       heading:
         "The visual system stays minimal so the emotional read lands first.",
       principleLabel: "Working principle",
       principleText:
         "Atmosphere is built through subtraction: fewer visual decisions, more intentional emotional signal.",
       lead:
-        "Every tonal shift in the frame serves the subject. Space, styling, and architecture are kept restrained so the emotional center remains exact and unforced.",
+        "Every tonal shift in the frame serves the subject. Space, styling, and architecture are kept restrained so the emotional centre remains exact and unforced.",
       columns: [
         {
-          title: "Portrait",
-          text: "The figure remains the only true anchor, never one more element inside the styling.",
+          title: "Subject",
+          text: "The figure remains the only true anchor — never one more element inside the composition.",
         },
         {
           title: "Narrative",
-          text: "Details carry the story without asking captions to explain what the frame should already hold.",
+          text: "Visual details carry the story without captions explaining what the frame should already hold.",
         },
         {
-          title: "Control",
-          text: "Whitespace, darkness, and silence stay protected so the image never feels overworked.",
+          title: "Restraint",
+          text: "Negative space, shadow, and silence are protected so the final image never feels overworked.",
         },
       ],
     },
     story: {
-      label: "Narrative",
+      label: "Selected Work",
       heading: "Selected sequences.",
       text:
-        "These are not categories, but fragments that hold the visual method behind Eldon Studio.",
-      readingMode: "Reading mode",
-      readingModeText: "Image first, text second, atmosphere before explanation.",
+        "These are not categories. They are fragments that hold the visual method and working logic behind Eldon Studio.",
+      readingMode: "Approach",
+      readingModeText: "Image before text. Atmosphere before explanation. Sequence before moment.",
       sequence: "Sequence",
-      selectedSeries: "Selected series",
-      fragment: "Narrative fragment",
-      commission: "Editorial sequence / private commission",
+      selectedSeries: "Selected Series",
+      fragment: "Visual Narrative",
+      commission: "Editorial Series · Private Commission",
       study: "Study",
+    },
+    aestheticLab: {
+      label: "Lumina Engine",
+      heading: "Aesthetic deconstruction for a single frame.",
+      text:
+        "Upload one photograph and Lumina will reverse-engineer it through emotional color psychology, light-shadow tension, and narrative conflict, then return a structured JSON dashboard ready for downstream tools.",
+      uploadLabel: "Image Input",
+      uploadHeading: "Upload a frame for reading",
+      uploadText:
+        "This module is designed as an aesthetic instrument rather than a generic image inspector. It reads color pressure, emotional gravity, and lighting intent before turning the result into machine-readable output.",
+      uploadCta: "Drop or select image",
+      uploadHint: "Use a portrait, editorial frame, or cinematic still. Analysis starts as soon as the image is selected.",
+      replaceImage: "Replace Image",
+      previewLabel: "Current frame",
+      previewAlt: "Uploaded image preview for aesthetic analysis",
+      engineLabel: "Engine Status",
+      awaitingImage: "Waiting for an image. Once selected, the engine will read emotional color and light structure automatically.",
+      analyzing: "Lumina is dissecting color tension, visual gravity, and light ratio...",
+      analysisReady: "Analysis complete. The dashboard and JSON packet are ready below.",
+      analysisError: "The image could not be analyzed. Try another file or re-upload the frame.",
+      emptyState:
+        "No aesthetic reading yet. Upload a frame to generate emotional resonance scores, light deconstruction, actionable grading advice, and social copy.",
+      readingLabel: "Critical Reading",
+      colorHeading: "Emo-Color Analytics",
+      lightHeading: "Light-Shadow Deconstruction",
+      adviceLabel: "Actionable Advice",
+      copyLabel: "Social Copy",
+      platformsLabel: "Platform Output",
+      platformsHeading: "Recommended titles and captions will appear here.",
+      platformsText:
+        "After analysis, Lumina will generate platform-specific publishing suggestions for Xiaohongshu and Douyin based on the emotional structure of the frame.",
+      platformLabels: {
+        xiaohongshu: "Xiaohongshu",
+        douyin: "Douyin",
+      },
+      platformHeadings: {
+        xiaohongshu: "Search-first save-worthy version",
+        douyin: "Hook-first completion-driven version",
+      },
+      recommendedTitlesLabel: "Recommended Titles",
+      recommendedCaptionLabel: "Recommended Caption",
+      jsonLabel: "JSON Output",
+      metricLabels: {
+        melancholy_isolation: "Melancholy / Isolation",
+        power_grit: "Power / Grit",
+        mystery_unknown: "Mystery / Unknown",
+        intimacy_warmth: "Intimacy / Warmth",
+      },
     },
     gallery: {
       label: "Archive",
-      heading: "Photography archive",
+      heading: "Photography Archive",
       text:
-        "Open a portfolio to manage its photographs, upload new work, and set the cover image. Each language version stays separate in the interface.",
+        "Open a series to manage its photographs, upload new work, and assign the cover frame. Each language version remains separate in the interface.",
       newPortfolio: "New Portfolio",
       addCardLabel: "Add new portfolio",
       addCardBadge: "Admin",
@@ -442,26 +632,139 @@ const siteCopy = {
       imageLabel: "image",
     },
     booking: {
-      label: "Contact",
-      heading: "Booking & side projects",
-      bookingLabel: "Booking",
-      bookingHeading: "Contact for commissions",
+      label: "Commission",
+      heading: "Commission a portrait series",
+      bookingLabel: "Commission",
+      bookingHeading: "Enquire about a commission",
       bookingText:
-        "Available for editorial portrait, campaign portraiture, and long-form commissioned series. Booking enquiries can later move directly into Lumina scheduling.",
-      namePlaceholder: "Name",
-      briefPlaceholder: "Project brief",
-      bookNow: "Book Now",
+        "Available for editorial portraiture, campaign production, and long-form commissioned series. Enquiries are reviewed personally and responded to within 24 hours.",
+      clientNameLabel: "Name",
+      clientNamePlaceholder: "Your name",
+      contactEmailLabel: "Email",
+      contactEmailPlaceholder: "hello@studio.com",
+      shootTypeLabel: "Discipline",
+      shootTypePlaceholder: "Select discipline",
+      preferredDateLabel: "Preferred Shoot Date",
+      budgetRangeLabel: "Production Budget",
+      budgetRangePlaceholder: "Select range",
+      shootTypeOptions: [
+        { value: "portrait", label: "Portrait" },
+        { value: "editorial", label: "Editorial" },
+        { value: "campaign", label: "Campaign" },
+        { value: "commercial", label: "Commercial" },
+      ],
+      budgetRangeOptions: [
+        { value: "under-5k", label: "Under 5K" },
+        { value: "5k-10k", label: "5K – 10K" },
+        { value: "10k-20k", label: "10K – 20K" },
+        { value: "20k-plus", label: "20K+" },
+      ],
+      bookNow: "Submit Enquiry",
+      submitting: "Submitting...",
       connectLumina: "Connect to Lumina scheduling system",
       savedDraft:
-        "The booking request has been saved as a front-end draft and can later connect to a real scheduling endpoint.",
-      sideProjectsLabel: "Side Projects",
+        "Your enquiry has been received. A project brief will be prepared and sent to you within 24 hours.",
+      sideProjectsLabel: "Personal Work",
       sideProjectsHeading: "Personal systems.",
       learnMore: "Learn More",
+      responseNote: "Each enquiry is reviewed personally. Expect a project-fit note and the next step within 24 hours.",
+      submitError: "Submission paused. Please try again in a moment.",
+      eyebrow: "Private Commissions",
+      heroHeading: "Bespoke Portrait Direction",
+      heroHeadingItalic: "For the Discerning Eye",
+      dialogueHeading: "Begin the Enquiry",
+      dialogueText:
+        "Each commission is a singular collaboration. Share your brief and creative intent — we will respond within 24 hours to discuss the project in depth.",
+      nameLabel: "Name",
+      namePlaceholder: "E.g. Julian Vayne",
+      emailLabel: "Email",
+      emailPlaceholder: "your@email.com",
+      projectTypeLabel: "Discipline",
+      dateLabel: "Preferred Shoot Date",
+      narrativeLabel: "Creative Brief",
+      narrativePlaceholder:
+        "Describe the atmosphere, references, and intent of the project...",
+      sendBtn: "Submit Enquiry",
+      sendingBtn: "Sending...",
+      successMsg: "Enquiry received. We will be in touch within 24 hours.",
+      editPackageLabel: "Edit",
+      savePackageLabel: "Save",
+      cancelLabel: "Cancel",
+      packages: [
+        {
+          id: "01",
+          tier: "FOUNDATION",
+          name: "The Editorial",
+          description:
+            "Designed for individuals and brands requiring refined, high-impact portraiture for editorial use and digital presence.",
+          features: [
+            "15 Final Selects, Fully Retouched",
+            "Half-Day Private Studio Session",
+            "Delivery via Private Client Portal",
+          ],
+          price: "$1,200",
+          priceNote: "Starting Rate",
+        },
+        {
+          id: "02",
+          tier: "SIGNATURE",
+          name: "The Commission",
+          description:
+            "Comprehensive production for artists, executives, and creative studios requiring a definitive body of work.",
+          features: [
+            "40 Retouched High-Resolution Deliverables",
+            "Full-Day On-Location Production",
+            "Art Direction & Styling Consultation",
+            "Priority 48-Hour Post-Production",
+          ],
+          price: "$2,850",
+          priceNote: "Starting Rate",
+        },
+        {
+          id: "03",
+          tier: "BESPOKE",
+          name: "The Collection",
+          description:
+            "An immersive visual narrative developed across multiple sessions, inclusive of cinematic moving portraits and print licensing.",
+          features: [
+            "Unlimited Final Deliverables",
+            "Multi-Day Production, Travel Included",
+            "Cinematic Video Portraits (4K)",
+          ],
+          price: "Custom",
+          priceNote: "Consultation Required",
+        },
+      ],
+    },
+    login: {
+      open: "Login / Sign Up",
+      title: "Account Access",
+      text:
+        "Sign in or create an account to save your identity on this site. Editing tools remain restricted to the designated administrator.",
+      emailLabel: "Email",
+      emailPlaceholder: "hello@eldonstudio.com",
+      passwordLabel: "Password",
+      passwordPlaceholder: "Enter password",
+      signInTab: "Login",
+      signUpTab: "Sign Up",
+      submitSignIn: "Login",
+      submitSignUp: "Create Account",
+      submittingSignIn: "Logging in...",
+      submittingSignUp: "Creating...",
+      signOut: "Sign Out",
+      close: "Close",
+      authUnavailable:
+        "Supabase Auth is not configured yet. Add the Supabase env values and restart the dev server.",
+      memberBadge: "Member",
+      adminBadge: "Admin",
+      signedInAs: "Signed in as",
+      signUpSuccess:
+        "Account created. Check your email if confirmation is required, or log in immediately if email confirmation is disabled.",
     },
     footer: {
       text:
-        "Portrait commissions, narrative studies, and local archive management connected through Lumina workflow.",
-      poweredBy: "Powered by Lumina workflow",
+        "Portrait commissions, editorial series, and archive management — connected through the Lumina workflow.",
+      poweredBy: "Powered by Lumina",
     },
     confirm: {
       deleteLabel: "Confirm Delete",
@@ -483,6 +786,9 @@ const siteCopy = {
       cancel: "Cancel",
       confirm: "Confirm Upload",
       uploading: "Uploading...",
+      uploadFailed: "Upload failed. Check Supabase storage and try again.",
+      supabaseConfigMissing:
+        "Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local.",
     },
   },
   zh: {
@@ -559,6 +865,9 @@ const siteCopy = {
       titleTooLong: "标题长度不能超过 90 个字符。",
       selectImageFirst: "创建摄影集前请至少选择一张本地图片。",
       saveFailed: "保存失败，请重试。",
+      uploadFailed: "图片上传失败，请检查 Supabase Storage 配置后重试。",
+      supabaseConfigMissing:
+        "Supabase 尚未完成配置。请在 .env.local 中填写 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY。",
       dataTools: "数据备份",
       dataToolsText:
         "可将当前浏览器中的摄影归档导出为 JSON 备份，也可在管理模式内恢复此前导出的备份文件。",
@@ -582,64 +891,133 @@ const siteCopy = {
       defaultDescription: "一组围绕氛围、克制与肖像节奏建立的新系列。",
     },
     hero: {
-      cinematicDirection: "电影感肖像方向",
-      navArchive: "作品归档",
-      navBooking: "联系预约",
+      cinematicDirection: "电影感肖像摄影",
+      navPortfolio: "作品集",
+      navApproach: "创作理念",
+      navCommission: "委托拍摄",
+      navStudio: "关于工作室",
+      navArchive: "作品集",
+      navAbout: "关于工作室",
+      navBooking: "委托拍摄",
+      navLab: "LAB",
       navLumina: "Lumina 应用",
-      visualDirection: "2026 视觉方向",
-      heading: "以克制、氛围与更纯净情绪信号完成肖像表达。",
-      viewArchive: "查看归档",
+      scrollExplore: "向下继续浏览",
+      adminEntry: "管理",
+      modulesLabel: "工作室模块",
+      modulesHeading: "在归档背后，还有一套更安静的系统。",
+      modulesText:
+        "网站承担展示、影像归档与 Lumina 工作流交接三层功能，三者共用同一数据结构。",
+      modulesStatsPortfolios: "系列归档数量",
+      modulesStatsImages: "画面管理数量",
+      moduleArchiveTitle: "影像档案",
+      moduleArchiveText: "支持影棚级图片上传、封面选帧、灯箱预览与稳健的本地持久化存储。",
+      moduleLanguageTitle: "双语控制",
+      moduleLanguageText: "中英文界面严格分离，共享同一套规范化数据模型。",
+      moduleLuminaTitle: "Lumina 集成",
+      moduleLuminaText: "委托简报与项目交接直接路由至 Lumina 排期系统，无需手动转移。",
+      visualDirection: "2026 · 视觉方向",
+      heading: "以克制、光线与精准情绪刻度，完成肖像表达。",
+      viewArchive: "浏览作品集",
       openLumina: "打开 Lumina",
-      studioNote: "工作室说明",
-      studioNoteText: "每一次委托都被视作一段被控制的序列，而不是单张图像的偶然产出。",
+      studioNote: "工作室",
+      studioNoteText: "每一次委托都被理解为一组被控制的序列——而不是孤立画面的偶然堆叠。",
       portraitSystem: "肖像系统",
       creativeStance: "创作立场",
       creativeStanceText:
-        "适用于私人与定制委托、编辑肖像与艺术指导型身份拍摄，风格化元素始终从属于人物表达。",
+        "接受私人委托、编辑肖像与艺术指导型身份拍摄。风格化元素始终从属于人物表达。",
       workflow: "工作流",
-      workflowText: "网站归档、本地图片管理，以及与 Lumina 排期系统的直接衔接。",
+      workflowText: "影像档案管理、后期成片交付，以及与 Lumina 排期系统的直接衔接。",
       studioPreview: "工作室预览",
-      selectedFrame: "精选画面",
-      emptyTitle: "上传本地作品后，即可开始构建你的摄影归档。",
+      selectedFrame: "当前画面",
+      emptyTitle: "上传作品后，即可开始构建影像档案。",
+      luminaLabCta: "探索审美分析实验室",
     },
     practice: {
-      label: "实践方法",
+      label: "创作理念",
       heading: "让视觉系统保持最小化，情绪读取才能率先落位。",
       principleLabel: "工作原则",
-      principleText: "氛围来自删减：更少的视觉决定，更准确的情绪信号。",
+      principleText: "氛围来自删减：更少的视觉决策，更精准的情绪信号。",
       lead:
-        "画面中的每一次明暗变化都服务于人物本身。空间、造型与建筑被控制在足够克制的范围内，让情绪核心保持精确且不被打断。",
+        "画面中的每一次明暗变化都服务于被摄者本身。空间、造型与环境元素被控制在足够克制的范围内，让情绪核心保持精确且不被干扰。",
       columns: [
         {
-          title: "人物",
-          text: "人物始终是唯一真正的锚点，而不是造型体系中的附属元素。",
+          title: "被摄者",
+          text: "人物始终是画面唯一真正的锚点，而非造型体系中的附属元素。",
         },
         {
           title: "叙事",
-          text: "细节本身承载叙事，不依赖额外文字去解释一张画面本应表达的内容。",
+          text: "视觉细节本身承载叙事，不依赖文字去解释一张照片本该呈现的内容。",
         },
         {
-          title: "控制",
-          text: "留白、暗部与安静感都会被保留，避免图像被过度加工。",
+          title: "克制",
+          text: "留白、暗部与画面中的静默感都会被保留，确保最终影像不过度加工。",
         },
       ],
     },
     story: {
-      label: "叙事片段",
+      label: "精选作品",
       heading: "精选序列。",
-      text: "这些并非普通分类，而是构成 Eldon Studio 视觉方法的若干片段。",
+      text: "这些并非普通分类，而是承载 Eldon Studio 视觉方法与工作逻辑的若干片段。",
       readingMode: "阅读方式",
-      readingModeText: "先看图像，再读文字，让氛围领先于解释。",
+      readingModeText: "先看图像，再读文字。让氛围领先于解释，让序列领先于瞬间。",
       sequence: "序列",
       selectedSeries: "精选系列",
-      fragment: "叙事片段",
-      commission: "编辑委托 / 私人定制",
-      study: "研究样本",
+      fragment: "视觉叙事",
+      commission: "编辑系列 · 私人委托",
+      study: "样本研究",
+    },
+    aestheticLab: {
+      label: "Lumina 引擎",
+      heading: "针对单张影像的审美拆解。",
+      text:
+        "上传一张摄影作品后，Lumina 会从情绪色彩心理、光影张力与叙事冲突三个维度逆向拆解画面，并输出可供前端或其他 AI 继续处理的结构化 JSON。",
+      uploadLabel: "图像输入",
+      uploadHeading: "上传一张画面开始解读",
+      uploadText:
+        "这不是普通的图片检测器，而是一台偏向审美判断的视觉仪器。它会先读取色彩压力、情绪重力与布光意图，再将结果整理成机器可读的输出。",
+      uploadCta: "拖入或选择图片",
+      uploadHint: "建议上传肖像、编辑摄影或电影感画面。选中图片后会自动开始分析。",
+      replaceImage: "更换图片",
+      previewLabel: "当前画面",
+      previewAlt: "用于审美分析的上传图片预览",
+      engineLabel: "引擎状态",
+      awaitingImage: "等待图像输入。选中后将自动开始读取情绪色彩与光影结构。",
+      analyzing: "Lumina 正在拆解色彩张力、视觉重力与光比结构...",
+      analysisReady: "分析完成，下方已生成仪表盘与 JSON 结果。",
+      analysisError: "图片分析失败，请尝试重新上传或更换文件。",
+      emptyState:
+        "还没有生成审美报告。上传一张画面后，这里会输出情绪共振分值、光影结构分析、后期建议与可直接使用的文案。",
+      readingLabel: "审美拆解",
+      colorHeading: "情绪色彩分析",
+      lightHeading: "光影结构拆解",
+      adviceLabel: "可执行建议",
+      copyLabel: "社交文案",
+      platformsLabel: "平台输出",
+      platformsHeading: "分析完成后，这里会生成适配平台的标题与文案。",
+      platformsText:
+        "Lumina 会根据画面的情绪结构，为小红书与抖音分别生成更适合平台分发逻辑的发布建议。",
+      platformLabels: {
+        xiaohongshu: "小红书",
+        douyin: "抖音",
+      },
+      platformHeadings: {
+        xiaohongshu: "偏搜索与收藏的版本",
+        douyin: "偏钩子与完播的版本",
+      },
+      recommendedTitlesLabel: "推荐标题",
+      recommendedCaptionLabel: "推荐文案",
+      jsonLabel: "JSON 输出",
+      metricLabels: {
+        melancholy_isolation: "忧郁 / 孤绝",
+        power_grit: "力量 / 粗粝",
+        mystery_unknown: "神秘 / 未知",
+        intimacy_warmth: "亲密 / 温度",
+      },
     },
     gallery: {
-      label: "作品归档",
+      label: "影像档案",
       heading: "摄影档案",
-      text: "进入摄影集后可管理图片、继续上传新作品并设置封面。界面中的中英文版本会严格分开显示。",
+      text: "进入系列后可管理图片、上传新作品并指定封面帧。界面中的中英文版本严格分开管理。",
       newPortfolio: "新建摄影集",
       addCardLabel: "新增摄影集",
       addCardBadge: "管理",
@@ -668,24 +1046,136 @@ const siteCopy = {
       imageLabel: "图片",
     },
     booking: {
-      label: "联系与预约",
-      heading: "预约与延伸项目",
-      bookingLabel: "预约",
-      bookingHeading: "联系进行委托拍摄",
+      label: "委托拍摄",
+      heading: "委托一组肖像系列",
+      bookingLabel: "委托拍摄",
+      bookingHeading: "发起委托询价",
       bookingText:
-        "可承接编辑肖像、品牌肖像与长期委托系列。预约线索后续可直接衔接至 Lumina 排期系统。",
-      namePlaceholder: "姓名",
-      briefPlaceholder: "拍摄需求简介",
-      bookNow: "立即预约",
+        "可承接编辑肖像、商业肖像与长期委托系列。每一份询价均由摄影师本人审阅，并在 24 小时内回复。",
+      clientNameLabel: "姓名",
+      clientNamePlaceholder: "您的姓名",
+      contactEmailLabel: "邮箱",
+      contactEmailPlaceholder: "hello@studio.com",
+      shootTypeLabel: "拍摄方向",
+      shootTypePlaceholder: "选择拍摄方向",
+      preferredDateLabel: "意向拍摄日期",
+      budgetRangeLabel: "制作预算",
+      budgetRangePlaceholder: "选择预算区间",
+      shootTypeOptions: [
+        { value: "portrait", label: "人像" },
+        { value: "editorial", label: "编辑摄影" },
+        { value: "campaign", label: "品牌 Campaign" },
+        { value: "commercial", label: "商业摄影" },
+      ],
+      budgetRangeOptions: [
+        { value: "under-5k", label: "5K 以下" },
+        { value: "5k-10k", label: "5K – 10K" },
+        { value: "10k-20k", label: "10K – 20K" },
+        { value: "20k-plus", label: "20K 以上" },
+      ],
+      bookNow: "提交询价",
+      submitting: "提交中...",
       connectLumina: "接入 Lumina 摄影调度系统",
-      savedDraft: "该预约请求已作为前端草稿保存，后续可直接接入真实排期接口。",
-      sideProjectsLabel: "个人项目",
+      savedDraft: "您的询价已收到，我们将在 24 小时内整理项目方案并与您联系。",
+      sideProjectsLabel: "个人创作",
       sideProjectsHeading: "个人系统。",
       learnMore: "了解更多",
+      responseNote: "每份询价均由摄影师本人审阅，通常在 24 小时内回复项目匹配意见与下一步安排。",
+      submitError: "提交暂时未完成，请稍后重试。",
+      eyebrow: "私人委托",
+      heroHeading: "精工肖像定制",
+      heroHeadingItalic: "为懂得欣赏的人而作",
+      dialogueHeading: "发起委托",
+      dialogueText:
+        "每次委托都是一次独特的协作。请分享您的创作构想与项目简报，我们将在 24 小时内联系您深入探讨。",
+      nameLabel: "姓名",
+      namePlaceholder: "例如 张明",
+      emailLabel: "邮箱",
+      emailPlaceholder: "your@email.com",
+      projectTypeLabel: "拍摄方向",
+      dateLabel: "意向拍摄日期",
+      narrativeLabel: "创作简报",
+      narrativePlaceholder: "请描述项目的氛围、参考风格与创作意图...",
+      sendBtn: "提交询价",
+      sendingBtn: "提交中...",
+      successMsg: "询价已收到，我们将在 24 小时内与您联系。",
+      editPackageLabel: "编辑",
+      savePackageLabel: "保存",
+      cancelLabel: "取消",
+      packages: [
+        {
+          id: "01",
+          tier: "基础委托",
+          name: "编辑精选",
+          description:
+            "适合个人品牌与创作者，提供高质量编辑肖像，用于媒体发布与数字内容制作。",
+          features: [
+            "15 张精选终版，全套精修",
+            "半日制私人影棚拍摄",
+            "成片通过私密客户空间交付",
+          ],
+          price: "¥8,800",
+          priceNote: "含税起价",
+        },
+        {
+          id: "02",
+          tier: "签约委托",
+          name: "完整委托",
+          description:
+            "面向艺术家、高管与创意机构，提供系统性视觉档案记录与完整制作服务。",
+          features: [
+            "40 张高分辨率精修成片",
+            "全天外景拍摄制作",
+            "艺术指导与造型咨询",
+            "优先级 48 小时后期处理",
+          ],
+          price: "¥20,800",
+          priceNote: "含税起价",
+        },
+        {
+          id: "03",
+          tier: "定制委托",
+          name: "视觉系列",
+          description:
+            "跨多次拍摄会话构建沉浸式视觉叙事，含电影感动态影像与印刷授权。",
+          features: [
+            "无限量终版成片交付",
+            "多日制作，含差旅安排",
+            "电影感动态肖像（4K）",
+          ],
+          price: "定制报价",
+          priceNote: "需提前咨询",
+        },
+      ],
+    },
+    login: {
+      open: "登录 / 注册",
+      title: "账户访问",
+      text:
+        "你可以登录或注册以在本站保留身份状态，但编辑权限仅对指定管理员邮箱开放。",
+      emailLabel: "邮箱",
+      emailPlaceholder: "hello@eldonstudio.com",
+      passwordLabel: "密码",
+      passwordPlaceholder: "输入密码",
+      signInTab: "登录",
+      signUpTab: "注册",
+      submitSignIn: "登录",
+      submitSignUp: "创建账户",
+      submittingSignIn: "登录中...",
+      submittingSignUp: "创建中...",
+      signOut: "退出登录",
+      close: "关闭",
+      authUnavailable:
+        "Supabase Auth 尚未完成配置。请补全环境变量后重启开发服务器。",
+      memberBadge: "成员",
+      adminBadge: "管理员",
+      signedInAs: "当前登录",
+      signUpSuccess:
+        "账户已创建。如项目启用了邮箱验证，请先完成验证；若未启用，可直接登录使用。",
     },
     footer: {
-      text: "肖像委托、叙事研究与本地图像归档管理，统一接入 Lumina 工作流。",
-      poweredBy: "由 Lumina 工作流支持",
+      text: "肖像委托、编辑系列与影像档案管理——统一接入 Lumina 工作流。",
+      poweredBy: "由 Lumina 提供支持",
     },
     confirm: {
       deleteLabel: "删除确认",
@@ -704,171 +1194,42 @@ const siteCopy = {
       cancel: "取消",
       confirm: "确认上传",
       uploading: "上传中...",
+      uploadFailed: "上传失败，请检查 Supabase Storage 配置后重试。",
+      supabaseConfigMissing:
+        "Supabase 尚未完成配置。请在 .env.local 中填写 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY。",
     },
   },
 };
 
-function getLocalizedText(value, locale = "en") {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value[locale] || value.en || value.zh || "";
-  }
-
-  return typeof value === "string" ? value : "";
-}
-
-function toLocalizedField(value, fallback = { en: "", zh: "" }) {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return {
-      en: value.en?.trim() || fallback.en || "",
-      zh: value.zh?.trim() || value.en?.trim() || fallback.zh || fallback.en || "",
-    };
-  }
-
-  const text = typeof value === "string" ? value.trim() : "";
-  if (!text) {
-    return {
-      en: fallback.en || "",
-      zh: fallback.zh || fallback.en || "",
-    };
-  }
-
-  if (text === fallback.en || text === fallback.zh) {
-    return {
-      en: fallback.en || text,
-      zh: fallback.zh || text,
-    };
-  }
-
-  return {
-    en: text,
-    zh: text,
-  };
-}
-
-function openPortfolioDb() {
-  if (typeof window === "undefined" || !("indexedDB" in window)) {
-    return Promise.resolve(null);
-  }
-
-  return new Promise((resolve, reject) => {
-    const request = window.indexedDB.open(DB_NAME, 1);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function loadValueFromStorage(indexedDbKey, localStorageKey) {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const db = await openPortfolioDb();
-    if (db) {
-      const result = await new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, "readonly");
-        const request = transaction.objectStore(STORE_NAME).get(indexedDbKey);
-        request.onsuccess = () => resolve(request.result ?? null);
-        request.onerror = () => reject(request.error);
-      });
-
-      if (result !== undefined && result !== null) {
-        return result;
-      }
-    }
-  } catch {
-    // Fall back to localStorage below.
-  }
-
-  try {
-    const fallback = window.localStorage.getItem(localStorageKey);
-    if (!fallback) {
-      return null;
-    }
-
-    const parsed = JSON.parse(fallback);
-    return parsed ?? null;
-  } catch {
-    return null;
-  }
-}
-
-async function loadPortfoliosFromStorage() {
-  return loadValueFromStorage(STORAGE_KEY, LOCAL_STORAGE_KEY);
-}
-
-async function saveValueToStorage(indexedDbKey, localStorageKey, value) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    const db = await openPortfolioDb();
-    if (db) {
-      await new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, "readwrite");
-        transaction.objectStore(STORE_NAME).put(value, indexedDbKey);
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-      });
-    }
-  } catch {
-    // Keep localStorage fallback.
-  }
-
-  try {
-    window.localStorage.setItem(localStorageKey, JSON.stringify(value));
-  } catch {
-    // Ignore fallback persistence issues.
-  }
-}
-
-async function savePortfoliosToStorage(portfolios) {
-  return saveValueToStorage(STORAGE_KEY, LOCAL_STORAGE_KEY, portfolios);
-}
-
-async function loadProfileFromStorage() {
-  const value = await loadValueFromStorage(PROFILE_STORAGE_KEY, PROFILE_LOCAL_STORAGE_KEY);
-  return value && typeof value === "object" ? value : null;
-}
-
-async function saveProfileToStorage(profile) {
-  return saveValueToStorage(PROFILE_STORAGE_KEY, PROFILE_LOCAL_STORAGE_KEY, profile);
-}
-
-function toDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 function toPortfolioShape(portfolio) {
-  const images = Array.isArray(portfolio.images) ? portfolio.images : [];
-  const initialMatch =
+  const initialSeed =
     initialPortfolios.find(
       (seed) =>
         seed.id === portfolio.id ||
         getLocalizedText(seed.title, "en") === portfolio.title ||
         getLocalizedText(seed.title, "zh") === portfolio.title,
-    ) || fallbackPortfolioContent;
+    ) || null;
+  const images = Array.isArray(portfolio.images) ? portfolio.images : [];
   const normalizedImages = images
-    .filter((image) => image?.url)
-    .map((image, index) => ({
-      id: image.id ?? Date.now() + index,
-      url: image.url,
-      isCover: Boolean(image.isCover),
-    }));
+    .map((image, index) => {
+      const fallbackUrl = initialSeed?.images?.[index]?.url || null;
+      const nextUrl = isEphemeralImageUrl(image?.url) ? fallbackUrl : image?.url;
+
+      if (!nextUrl) {
+        return null;
+      }
+
+      return {
+        id: image.id ?? Date.now() + index,
+        url: nextUrl,
+        path:
+          typeof image?.path === "string" && image.path.length > 0
+            ? image.path
+            : getStoragePathFromUrl(nextUrl),
+        isCover: Boolean(image.isCover),
+      };
+    })
+    .filter(Boolean);
 
   if (normalizedImages.length > 0 && !normalizedImages.some((image) => image.isCover)) {
     normalizedImages[0].isCover = true;
@@ -876,10 +1237,11 @@ function toPortfolioShape(portfolio) {
 
   return {
     id: portfolio.id ?? Date.now(),
-    title: toLocalizedField(portfolio.title, initialMatch.title || fallbackPortfolioContent.title),
+    narrative: portfolio.narrative ?? initialSeed?.narrative,
+    title: toLocalizedField(portfolio.title, initialSeed?.title || fallbackPortfolioContent.title),
     description: toLocalizedField(
       portfolio.description,
-      initialMatch.description || fallbackPortfolioContent.description,
+      initialSeed?.description || fallbackPortfolioContent.description,
     ),
     images: normalizedImages,
   };
@@ -891,2245 +1253,96 @@ function toProfileShape(profile) {
     role: toLocalizedField(profile?.role, initialProfile.role),
     email: profile?.email?.trim() || initialProfile.email,
     intro: toLocalizedField(profile?.intro, initialProfile.intro),
-    avatarUrl: profile?.avatarUrl || initialProfile.avatarUrl,
+    avatarUrl: isEphemeralImageUrl(profile?.avatarUrl)
+      ? initialProfile.avatarUrl
+      : profile?.avatarUrl || initialProfile.avatarUrl,
   };
 }
 
-function createBackupPayload({ portfolios, profile, locale }) {
-  return {
-    type: BACKUP_FILE_TYPE,
-    version: BACKUP_FILE_VERSION,
-    exportedAt: new Date().toISOString(),
-    locale: locale === "zh" ? "zh" : "en",
-    profile: toProfileShape(profile),
-    portfolios: Array.isArray(portfolios) ? portfolios.map(toPortfolioShape) : [],
-  };
-}
-
-function normalizeBackupPayload(payload) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    throw new Error("invalid-backup");
-  }
-
-  if (
-    payload.type !== BACKUP_FILE_TYPE ||
-    payload.version !== BACKUP_FILE_VERSION ||
-    !Array.isArray(payload.portfolios)
-  ) {
-    throw new Error("invalid-backup");
-  }
-
-  return {
-    locale: payload.locale === "zh" ? "zh" : "en",
-    profile: toProfileShape(payload.profile),
-    portfolios: payload.portfolios.map(toPortfolioShape),
-  };
-}
-
-function getCoverImage(portfolio) {
-  if (!portfolio || !Array.isArray(portfolio.images)) {
-    return null;
-  }
-  return portfolio.images.find((image) => image.isCover) || portfolio.images[0] || null;
-}
-
-function useReveal(options = {}) {
-  const ref = useRef(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node || isVisible || typeof IntersectionObserver === "undefined") {
-      return undefined;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.unobserve(entry.target);
-        }
-      },
-      {
-        threshold: options.threshold ?? 0.18,
-        rootMargin: options.rootMargin ?? "0px 0px -10% 0px",
-      },
-    );
-
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [isVisible, options.rootMargin, options.threshold]);
-
-  return [ref, isVisible];
-}
-
-function RevealBlock({ children, className = "", delay = 0, style, ...props }) {
-  const [ref, isVisible] = useReveal();
-
-  return (
-    <div
-      ref={ref}
-      {...props}
-      className={`${className} transition duration-700 ease-out ${
-        isVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
-      }`}
-      style={{ transitionDelay: `${delay}ms`, ...(style || {}) }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function IconPlus() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-7 w-7 fill-none stroke-current stroke-[1.7]">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
-function IconEdit() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z" />
-    </svg>
-  );
-}
-
-function IconTrash() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M19 6l-1 14H6L5 6" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-    </svg>
-  );
-}
-
-function IconClose() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current stroke-[1.6]">
-      <path d="M6 6l12 12" />
-      <path d="M18 6L6 18" />
-    </svg>
-  );
-}
-
-function IconArrow({ direction = "left" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={`h-5 w-5 fill-none stroke-current stroke-[1.7] ${direction === "right" ? "rotate-180" : ""}`}
-    >
-      <path d="m15 6-6 6 6 6" />
-    </svg>
-  );
-}
-
-function IconUpload() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-[1.8]">
-      <path d="M12 16V5" />
-      <path d="m7 10 5-5 5 5" />
-      <path d="M4 20h16" />
-    </svg>
-  );
-}
-
-function AdminActionButton({ label, onClick, tone = "default", children }) {
-  const toneClass =
-    tone === "danger"
-      ? "border-red-500/30 text-red-300 hover:border-red-400/60 hover:text-red-100"
-      : "border-[color:var(--site-border)] text-[color:var(--site-muted-strong)] hover:border-[color:var(--site-accent)] hover:text-[color:var(--site-text)]";
-
-  return (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation();
-        onClick();
-      }}
-      aria-label={label}
-      className={`micro-button inline-flex h-10 w-10 items-center justify-center rounded-2xl border bg-[color:var(--site-bg-deep)]/88 backdrop-blur-md ${toneClass}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function AdminToggle({ isAdmin, onToggle }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-label="Toggle admin mode"
-      className={`micro-button fixed bottom-5 right-5 z-[90] flex h-12 w-12 items-center justify-center rounded-2xl border text-[10px] uppercase tracking-[0.36em] backdrop-blur-md ${
-        isAdmin
-          ? "border-[color:var(--site-accent)] bg-[color:var(--site-accent-soft)] text-[color:var(--site-text)] shadow-soft"
-          : "border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/55 text-[color:var(--site-muted)] hover:border-[color:var(--site-border-strong)] hover:text-[color:var(--site-text)]"
-      }`}
-    >
-      ADM
-    </button>
-  );
-}
-
-function LanguageToggle({ locale, onToggle }) {
-  return (
-    <div className="fixed right-5 top-5 z-[95] inline-flex rounded-full border border-[color:var(--site-border)] bg-white/86 p-1 shadow-soft backdrop-blur-md">
-      {[
-        { value: "en", label: "EN" },
-        { value: "zh", label: "中文" },
-      ].map((item) => (
-        <button
-          key={item.value}
-          type="button"
-          onClick={() => onToggle(item.value)}
-          className={`micro-button rounded-full px-4 py-2 text-[11px] font-medium uppercase transition ${
-            locale === item.value
-              ? "bg-[color:var(--site-accent)] text-white"
-              : "text-[color:var(--site-muted-strong)] hover:text-[color:var(--site-text)]"
-          }`}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function AdminDataPanel({
-  copy,
-  locale,
-  backupFileName,
-  backupStatus,
-  onExport,
-  onSelectFile,
-  onRestore,
-}) {
-  const inputRef = useRef(null);
-  const statusClass =
-    backupStatus?.tone === "error"
-      ? "border-red-500/25 bg-red-500/10 text-red-100"
-      : backupStatus?.tone === "success"
-        ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-100"
-        : "border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/58 text-[color:var(--site-muted)]";
-
-  return (
-    <section className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-10">
-      <RevealBlock className="overflow-hidden rounded-[2rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.05)_0%,rgba(255,255,255,0.025)_100%)] p-6 shadow-soft sm:p-8">
-        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.42em] text-[color:var(--site-accent)]">
-              {copy.admin.mode}
-            </p>
-            <h2
-              className={`mt-4 font-display text-4xl font-semibold text-[color:var(--site-text)] sm:text-5xl ${
-                locale === "zh" ? "tracking-[-0.03em]" : "tracking-[-0.05em]"
-              }`}
-            >
-              {copy.admin.dataTools}
-            </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--site-muted)]">
-              {copy.admin.dataToolsText}
-            </p>
-          </div>
-
-          <div className="rounded-[1.7rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/68 p-5">
-            <p className="text-[10px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]">
-              {copy.admin.dataTools}
-            </p>
-            <p className="mt-3 text-sm leading-7 text-[color:var(--site-muted)]">
-              {copy.admin.dataToolsSummary}
-            </p>
-
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".json,application/json"
-              className="hidden"
-              onChange={(event) => onSelectFile(event.target.files?.[0] || null)}
-            />
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={onExport}
-                className="micro-button rounded-full bg-[color:var(--site-accent)] px-5 py-3 text-xs font-semibold uppercase tracking-[0.32em] text-[#10131c] transition hover:bg-[color:var(--site-accent-strong)]"
-              >
-                {copy.admin.exportBackup}
-              </button>
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                className="micro-button rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/76 px-5 py-3 text-xs uppercase tracking-[0.32em] text-[color:var(--site-text)] transition hover:border-[color:var(--site-border-strong)]"
-              >
-                {copy.admin.selectBackupFile}
-              </button>
-              <button
-                type="button"
-                onClick={onRestore}
-                className="micro-button rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/76 px-5 py-3 text-xs uppercase tracking-[0.32em] text-[color:var(--site-text)] transition hover:border-[color:var(--site-border-strong)]"
-              >
-                {copy.admin.restoreBackup}
-              </button>
-            </div>
-
-            <div className="mt-5 rounded-[1.25rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-panel-soft)]/68 px-4 py-4">
-              <p className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--site-muted)]">
-                {copy.admin.selectedBackup}
-              </p>
-              <p className="mt-3 text-sm leading-6 text-[color:var(--site-text)]">
-                {backupFileName || copy.admin.noBackupSelected}
-              </p>
-            </div>
-
-            {backupStatus?.message ? (
-              <div className={`mt-4 rounded-[1.25rem] border px-4 py-3 text-sm ${statusClass}`}>
-                {backupStatus.message}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </RevealBlock>
-    </section>
-  );
-}
-
-function HeroCarousel({ items, copy, locale }) {
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  useEffect(() => {
-    if (items.length === 0) {
-      setActiveIndex(0);
-      return;
-    }
-
-    setActiveIndex((current) => (current >= items.length ? 0 : current));
-  }, [items.length]);
-
-  useEffect(() => {
-    if (items.length <= 1) {
-      return undefined;
-    }
-
-    const timer = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % items.length);
-    }, 4200);
-
-    return () => window.clearInterval(timer);
-  }, [items.length]);
-
-  return (
-    items.length === 0 ? (
-      <div className="relative flex min-h-[420px] items-end overflow-hidden rounded-[2rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,#1b1d24_0%,#12141a_100%)] p-6 shadow-soft sm:min-h-[560px] sm:p-8">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.38em] text-[color:var(--site-accent)]">
-            {copy.hero.studioPreview}
-          </p>
-          <p className="mt-4 max-w-sm text-2xl font-semibold tracking-[-0.04em] text-[color:var(--site-text)]">
-            {copy.hero.emptyTitle}
-          </p>
-        </div>
-      </div>
-    ) : (
-    <div className="relative h-full min-h-[420px] overflow-hidden rounded-[2rem] border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)] shadow-soft sm:min-h-[560px]">
-      {items.map((item, index) => (
-        <div
-          key={`${item.src}-${index}`}
-          className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-            index === activeIndex ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          <img src={item.src} alt={getLocalizedText(item.title, locale)} className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,17,22,0.08)_0%,rgba(16,17,22,0.16)_35%,rgba(16,17,22,0.72)_100%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(77,144,254,0.16),transparent_24%)]" />
-        </div>
-      ))}
-
-      <div className="absolute inset-x-0 bottom-0 z-10 bg-[linear-gradient(180deg,rgba(15,16,20,0)_0%,rgba(15,16,20,0.94)_100%)] px-5 pb-5 pt-20 sm:px-7 sm:pb-7">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.4em] text-[color:var(--site-accent)]">
-              {copy.hero.selectedFrame}
-            </p>
-            <p className="mt-3 max-w-sm text-lg font-semibold text-[color:var(--site-text)]">
-              {getLocalizedText(items[activeIndex]?.title, locale)}
-            </p>
-          </div>
-
-          <div className="rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 px-3 py-2 backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              {items.map((item, index) => (
-                <button
-                  key={`${item.title}-${index}`}
-                  type="button"
-                  aria-label={`${copy.hero.selectedFrame} ${index + 1}`}
-                  onClick={() => setActiveIndex(index)}
-                  className={`h-2.5 w-2.5 rounded-full transition ${
-                    index === activeIndex ? "bg-[color:var(--site-accent)]" : "bg-white/20"
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="absolute right-5 top-5 z-20 rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 px-4 py-2 text-[10px] uppercase tracking-[0.38em] text-[color:var(--site-muted)] backdrop-blur-md sm:right-7 sm:top-7">
-        {copy.hero.studioPreview}
-      </div>
-    </div>
-    )
-  );
-}
-
-function HeroSection({ portfolios, profile, isAdmin, onEditProfile, copy, locale }) {
-  const carouselItems = portfolios.flatMap((portfolio) =>
-    portfolio.images.map((image) => ({
-      src: image.url,
-      title: portfolio.title,
-    })),
-  );
-
-  return (
-    <section id="top" className="relative overflow-hidden px-4 pb-8 pt-4 sm:px-6 sm:pb-10 lg:px-10 lg:pb-14">
-      <div className="mx-auto max-w-7xl rounded-[2.4rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] p-4 shadow-soft sm:p-6">
-        <div className="flex flex-col gap-6 border-b border-[color:var(--site-border-soft)] pb-6 lg:flex-row lg:items-center lg:justify-between">
-          <a href="#top" className="flex items-center gap-4">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-panel-soft)] text-xs font-semibold uppercase tracking-[0.32em] text-[color:var(--site-accent)]">
-              ES
-            </span>
-            <span>
-              <span className="block text-xl font-semibold tracking-[-0.04em] text-[color:var(--site-text)] sm:text-2xl">
-                {getLocalizedText(profile.name, locale)}
-              </span>
-              <span className="mt-1 block text-[11px] uppercase tracking-[0.34em] text-[color:var(--site-muted)]">
-                {copy.hero.cinematicDirection}
-              </span>
-            </span>
-          </a>
-
-          <nav className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.34em] text-[color:var(--site-muted)]">
-            {[
-              { href: "#gallery", label: copy.hero.navArchive },
-              { href: "#booking", label: copy.hero.navBooking },
-              { href: LUMINA_URL, label: copy.hero.navLumina, external: true },
-            ].map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                target={item.external ? "_blank" : undefined}
-                rel={item.external ? "noreferrer" : undefined}
-                className="rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-panel-soft)] px-4 py-2 transition hover:border-[color:var(--site-border-strong)] hover:text-[color:var(--site-text)]"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-        </div>
-
-        <div className="grid gap-6 pt-6 lg:grid-cols-[0.88fr_1.12fr] lg:items-stretch">
-          <div className="relative flex flex-col justify-between overflow-hidden rounded-[2.1rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-soft sm:p-8">
-            <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-[color:var(--site-glow)] blur-3xl" />
-            <div>
-              <div className="mb-8 flex items-center gap-4">
-                <img
-                  src={profile.avatarUrl}
-                  alt={getLocalizedText(profile.name, locale)}
-                  className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10 sm:h-20 sm:w-20"
-                />
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.45em] text-[color:var(--site-accent)]">
-                    {getLocalizedText(profile.role, locale)}
-                  </p>
-                  <a
-                    href={`mailto:${profile.email}`}
-                    className="mt-2 inline-block text-sm text-[color:var(--site-muted-strong)] transition hover:text-[color:var(--site-text)]"
-                  >
-                    {profile.email}
-                  </a>
-                </div>
-                {isAdmin ? (
-                  <button
-                    type="button"
-                    onClick={onEditProfile}
-                    className="micro-button ml-auto inline-flex items-center gap-2 rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.32em] text-[color:var(--site-text)] transition hover:border-[color:var(--site-border-strong)] hover:text-[color:var(--site-accent)]"
-                  >
-                    <IconEdit />
-                    {copy.admin.editProfile}
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="inline-flex rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/80 px-4 py-2 text-[10px] uppercase tracking-[0.4em] text-[color:var(--site-accent)]">
-                {copy.hero.visualDirection}
-              </div>
-
-              <h1 className={`mt-8 max-w-2xl font-display text-5xl font-semibold text-[color:var(--site-text)] sm:text-6xl lg:text-7xl ${locale === "zh" ? "leading-[1.06] tracking-[-0.04em]" : "leading-[0.92] tracking-[-0.06em]"}`}>
-                {copy.hero.heading}
-              </h1>
-
-              <p className="mt-6 max-w-xl text-sm leading-8 text-[color:var(--site-muted)] sm:text-base">
-                {getLocalizedText(profile.intro, locale)}
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <a
-                  href="#gallery"
-                  className="rounded-full bg-[color:var(--site-accent)] px-5 py-3 text-xs font-semibold uppercase tracking-[0.32em] text-[#10131c] transition hover:bg-[color:var(--site-accent-strong)]"
-                >
-                  {copy.hero.viewArchive}
-                </a>
-                <a
-                  href={LUMINA_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 px-5 py-3 text-xs uppercase tracking-[0.32em] text-[color:var(--site-text)] transition hover:border-[color:var(--site-border-strong)]"
-                >
-                  {copy.hero.openLumina}
-                </a>
-              </div>
-            </div>
-
-            <div className="mt-10 rounded-[1.7rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/54 p-4 sm:p-5">
-              <div className="mb-4 flex items-center justify-between gap-3 border-b border-[color:var(--site-border-soft)] pb-4">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]">
-                    {copy.hero.studioNote}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-[color:var(--site-muted)]">
-                    {copy.hero.studioNoteText}
-                  </p>
-                </div>
-                <span className="hidden rounded-full border border-[color:var(--site-border)] bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.28em] text-[color:var(--site-muted-strong)] sm:inline-flex">
-                  {copy.hero.portraitSystem}
-                </span>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-              {practiceRows.map((row) => (
-                <div
-                  key={getLocalizedText(row.label, "en")}
-                  className="rounded-[1.35rem] border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 px-4 py-4"
-                >
-                  <p className="text-[10px] uppercase tracking-[0.36em] text-[color:var(--site-muted)]">
-                    {getLocalizedText(row.label, locale)}
-                  </p>
-                  <p className="mt-3 text-sm leading-6 text-[color:var(--site-muted-strong)]">
-                    {getLocalizedText(row.value, locale)}
-                  </p>
-                </div>
-              ))}
-            </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-rows-[minmax(0,1fr)_auto]">
-            <HeroCarousel items={carouselItems} copy={copy} locale={locale} />
-
-            <div className="grid gap-4 sm:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-[1.8rem] border border-[color:var(--site-border)] bg-[color:var(--site-panel-soft)] p-5">
-                <p className="text-[10px] uppercase tracking-[0.38em] text-[color:var(--site-accent)]">
-                  {copy.hero.creativeStance}
-                </p>
-                <p className="mt-4 max-w-md text-sm leading-7 text-[color:var(--site-muted)]">
-                  {copy.hero.creativeStanceText}
-                </p>
-              </div>
-
-              <div className="rounded-[1.8rem] border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 p-5">
-                <p className="text-[10px] uppercase tracking-[0.38em] text-[color:var(--site-muted)]">
-                  {copy.hero.workflow}
-                </p>
-                <p className="mt-4 text-sm leading-7 text-[color:var(--site-text)]">
-                  {copy.hero.workflowText}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function PracticeSection({ copy, locale }) {
-  return (
-    <section className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:px-10 lg:py-20">
-      <RevealBlock className="rounded-[1.95rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-soft sm:p-8">
-        <p className="mb-4 text-[11px] uppercase tracking-[0.45em] text-[color:var(--site-accent)]">
-          {copy.practice.label}
-        </p>
-        <h2 className={`max-w-md font-display text-4xl font-semibold text-[color:var(--site-text)] sm:text-5xl ${locale === "zh" ? "leading-[1.14] tracking-[-0.03em]" : "leading-tight tracking-[-0.05em]"}`}>
-          {copy.practice.heading}
-        </h2>
-
-        <div className="mt-8 rounded-[1.4rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/68 p-4">
-          <p className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--site-muted)]">
-            {copy.practice.principleLabel}
-          </p>
-          <p className="mt-3 text-sm leading-6 text-[color:var(--site-muted-strong)]">
-            {copy.practice.principleText}
-          </p>
-        </div>
-      </RevealBlock>
-
-      <RevealBlock
-        delay={120}
-        className="rounded-[1.95rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-soft sm:p-8"
-      >
-        <p className="max-w-2xl text-base leading-8 text-[color:var(--site-text)]/84">
-          {copy.practice.lead}
-        </p>
-
-        <div className="mt-8 grid gap-4 border-t border-[color:var(--site-border-soft)] pt-6 sm:grid-cols-3">
-          {copy.practice.columns.map((item, index) => (
-            <div
-              key={item.title}
-              className="rounded-[1.45rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/68 p-5"
-              style={{
-                transitionDelay: `${index * 80}ms`,
-              }}
-            >
-              <p className="text-[11px] uppercase tracking-[0.38em] text-[color:var(--site-accent)]">
-                {item.title}
-              </p>
-              <p className="mt-3 text-sm leading-7 text-[color:var(--site-muted)]">
-                {item.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      </RevealBlock>
-    </section>
-  );
-}
-
-function StorySection({ portfolios, copy, locale }) {
-  return (
-    <section className="mx-auto grid max-w-7xl gap-8 border-t border-[color:var(--site-border-soft)] px-4 py-20 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-10 lg:py-24">
-      <RevealBlock className="lg:sticky lg:top-10 lg:h-fit">
-        <div className="rounded-[1.9rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-soft">
-          <p className="mb-4 text-[11px] uppercase tracking-[0.45em] text-[color:var(--site-accent)]">
-            {copy.story.label}
-          </p>
-          <h2 className={`font-display text-4xl font-semibold text-[color:var(--site-text)] sm:text-5xl ${locale === "zh" ? "leading-[1.12] tracking-[-0.03em]" : "tracking-[-0.05em]"}`}>
-            {copy.story.heading}
-          </h2>
-          <p className="mt-5 max-w-sm text-sm leading-7 text-[color:var(--site-muted)]">
-            {copy.story.text}
-          </p>
-
-          <div className="mt-8 rounded-[1.4rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/68 p-4">
-            <p className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--site-muted)]">
-              {copy.story.readingMode}
-            </p>
-            <p className="mt-3 text-sm leading-6 text-[color:var(--site-muted-strong)]">
-              {copy.story.readingModeText}
-            </p>
-          </div>
-        </div>
-      </RevealBlock>
-
-      <div className="space-y-8">
-        {portfolios.slice(0, 3).map((portfolio, index) => (
-          <RevealBlock key={portfolio.id} delay={index * 120}>
-            <article className="grid gap-5 rounded-[2rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] p-5 shadow-soft md:grid-cols-[1.15fr_0.85fr]">
-              <div className="relative overflow-hidden rounded-[1.8rem] border border-[color:var(--site-border-soft)]">
-                <img
-                  src={portfolio.images[(index + 1) % portfolio.images.length]?.url || getCoverImage(portfolio)?.url}
-                  alt={getLocalizedText(portfolio.title, locale)}
-                  className="h-[320px] w-full object-cover transition duration-700 hover:scale-[1.03] sm:h-[420px]"
-                />
-
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,13,18,0.06)_0%,rgba(12,13,18,0.22)_38%,rgba(12,13,18,0.84)_100%)]" />
-                <div className="absolute right-4 top-4 flex items-start justify-end gap-3">
-                  <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.28em] text-white/70 backdrop-blur-md">
-                    {copy.story.sequence}
-                  </span>
-                </div>
-                <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-                  <div className="rounded-[1.35rem] border border-white/10 bg-[color:var(--site-bg-deep)]/62 p-4 backdrop-blur-md">
-                    <p className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--site-accent)]">
-                      {copy.story.selectedSeries}
-                    </p>
-                    <h3 className="mt-2 text-[1.55rem] font-semibold leading-tight tracking-[-0.05em] text-[color:var(--site-text)]">
-                      {getLocalizedText(portfolio.title, locale)}
-                    </h3>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col justify-between">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.34em] text-[color:var(--site-muted)]">
-                    {copy.story.fragment}
-                  </p>
-                  <p className="mt-4 text-sm leading-7 text-[color:var(--site-muted)]">
-                    {getLocalizedText(portfolio.description, locale)}
-                  </p>
-                </div>
-
-                <div className="mt-8 border-t border-[color:var(--site-border-soft)] pt-4">
-                  <div className="flex items-center justify-between gap-3 rounded-[1.4rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/72 px-4 py-4 text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">
-                    <span>{copy.story.commission}</span>
-                    <span className="rounded-full bg-white/[0.04] px-3 py-1 text-[10px] tracking-[0.28em] text-[color:var(--site-muted-strong)]">
-                      {copy.story.study}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </article>
-          </RevealBlock>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function PortfolioCard({ portfolio, isAdmin, onOpen, onEdit, onDelete, copy, locale }) {
-  const coverImage = getCoverImage(portfolio);
-
-  return (
-    <article className="group relative overflow-hidden rounded-[1.85rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] shadow-soft transition duration-500 hover:-translate-y-1.5 hover:border-[color:var(--site-border-strong)]">
-      <button type="button" onClick={onOpen} className="block w-full text-left">
-        <div className="relative aspect-[4/5] overflow-hidden bg-[color:var(--site-bg-deep)]">
-          {coverImage ? (
-            <img
-              src={coverImage.url}
-              alt={getLocalizedText(portfolio.title, locale)}
-              loading="lazy"
-              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
-            />
-          ) : (
-            <div className="flex h-full min-h-[320px] items-center justify-center bg-[color:var(--site-bg-deep)]/72 px-6 text-center text-sm text-[color:var(--site-muted)]">
-              {copy.gallery.noCover}
-            </div>
-          )}
-
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,13,18,0.08)_0%,rgba(12,13,18,0.2)_34%,rgba(12,13,18,0.82)_100%)]" />
-
-          <div className="absolute right-4 top-4 flex items-start justify-end gap-3">
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.28em] text-white/72 backdrop-blur-md">
-              {portfolio.images.length} {copy.gallery.imagesSuffix}
-            </span>
-          </div>
-
-          <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-            <div className="rounded-[1.35rem] border border-white/10 bg-[color:var(--site-bg-deep)]/62 p-4 backdrop-blur-md transition duration-500 group-hover:border-white/20">
-              <p className="text-[10px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]">
-                {copy.gallery.selectedSeries}
-              </p>
-              <h3 className="mt-2 text-[1.55rem] font-semibold leading-tight tracking-[-0.05em] text-[color:var(--site-text)]">
-                {getLocalizedText(portfolio.title, locale)}
-              </h3>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-[color:var(--site-border-soft)] p-5">
-          <p className="min-h-[3.75rem] text-sm leading-6 text-[color:var(--site-muted)]">
-            {getLocalizedText(portfolio.description, locale)}
-          </p>
-
-          <div className="mt-4 flex items-center justify-between border-t border-[color:var(--site-border-soft)] pt-4">
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-[color:var(--site-muted)]">
-              <span className="h-2 w-2 rounded-full bg-[color:var(--site-accent)]" />
-              {copy.gallery.archiveDetail}
-            </div>
-            <span className="rounded-full bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.28em] text-[color:var(--site-muted-strong)] transition group-hover:bg-white/[0.08]">
-              {copy.gallery.open}
-            </span>
-          </div>
-        </div>
-      </button>
-
-      {isAdmin ? (
-        <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
-          <AdminActionButton label={copy.detail.editPortfolio} onClick={onEdit}>
-            <IconEdit />
-          </AdminActionButton>
-          <AdminActionButton label={copy.detail.deletePortfolio} onClick={onDelete} tone="danger">
-            <IconTrash />
-          </AdminActionButton>
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function AddPortfolioCard({ onClick, copy }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={copy.gallery.addCardLabel}
-      className="micro-button flex min-h-[440px] w-full flex-col items-start justify-between rounded-[1.85rem] border border-dashed bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0%,rgba(255,255,255,0.02)_100%)] px-6 py-6 text-left transition hover:border-[color:var(--site-border-strong)] hover:bg-white/[0.05]"
-      style={{ borderColor: "var(--site-border)" }}
-    >
-      <div className="flex w-full items-start justify-between gap-3">
-        <span className="rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 px-3 py-1 text-[10px] uppercase tracking-[0.28em] text-[color:var(--site-muted)]">
-          {copy.gallery.addCardBadge}
-        </span>
-        <span
-          className="flex h-12 w-12 items-center justify-center rounded-2xl border text-2xl"
-          style={{ borderColor: "var(--site-border)", color: "var(--site-accent)" }}
-        >
-          <IconPlus />
-        </span>
-      </div>
-
-      <div>
-        <span className="text-[10px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]">
-          {copy.gallery.addCardEyebrow}
-        </span>
-        <p className="mt-3 text-[1.85rem] font-semibold leading-tight tracking-[-0.05em] text-[color:var(--site-text)]">
-          {copy.gallery.addCardTitle}
-        </p>
-        <p className="mt-3 max-w-[18rem] text-sm leading-7 text-[color:var(--site-muted)]">
-          {copy.gallery.addCardText}
-        </p>
-      </div>
-
-      <div className="flex w-full items-center justify-between gap-2 border-t border-[color:var(--site-border-soft)] pt-4 text-[10px] uppercase tracking-[0.3em] text-[color:var(--site-muted)]">
-        <span className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-[color:var(--site-accent)]" />
-          {copy.gallery.addCardFooter}
-        </span>
-        <span className="rounded-full bg-white/[0.04] px-3 py-1 text-[color:var(--site-muted-strong)]">
-          {copy.gallery.addCardAction}
-        </span>
-      </div>
-    </button>
-  );
-}
-
-function PortfolioMasonry({ portfolios, isAdmin, onAdd, onOpen, onEdit, onDelete, copy, locale }) {
-  return (
-    <section id="gallery" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-10 lg:py-24">
-      <RevealBlock className="mb-10 flex flex-col gap-5 border-b border-[color:var(--site-border)] pb-6 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="mb-3 text-[11px] uppercase tracking-[0.45em] text-[color:var(--site-accent)]">
-            {copy.gallery.label}
-          </p>
-          <h2 className={`font-display text-4xl font-semibold text-[color:var(--site-text)] sm:text-5xl ${locale === "zh" ? "tracking-[-0.03em]" : "tracking-[-0.05em]"}`}>
-            {copy.gallery.heading}
-          </h2>
-        </div>
-        <p className="max-w-xl text-sm leading-7 text-[color:var(--site-muted)]">
-          {copy.gallery.text}
-        </p>
-
-        {isAdmin ? (
-          <button
-            type="button"
-            onClick={onAdd}
-            className="micro-button inline-flex items-center gap-2 self-start rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.32em] text-[color:var(--site-text)] transition hover:border-[color:var(--site-border-strong)] hover:text-[color:var(--site-accent)]"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--site-border)] text-[color:var(--site-accent)]">
-              <IconPlus />
-            </span>
-            {copy.gallery.newPortfolio}
-          </button>
-        ) : null}
-      </RevealBlock>
-
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-        {isAdmin ? (
-          <RevealBlock>
-            <AddPortfolioCard onClick={onAdd} copy={copy} />
-          </RevealBlock>
-        ) : null}
-
-        {portfolios.map((portfolio, index) => (
-          <RevealBlock key={portfolio.id} delay={index * 60}>
-            <PortfolioCard
-              portfolio={portfolio}
-              isAdmin={isAdmin}
-              copy={copy}
-              locale={locale}
-              onOpen={() => onOpen(portfolio.id)}
-              onEdit={() => onEdit(portfolio)}
-              onDelete={() => onDelete(portfolio.id)}
-            />
-          </RevealBlock>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function PortfolioEditorModal({ portfolio, onClose, onSave, copy }) {
-  const initialTitle = toLocalizedField(portfolio?.title, fallbackPortfolioContent.title);
-  const initialDescription = toLocalizedField(
-    portfolio?.description,
-    fallbackPortfolioContent.description,
-  );
-  const [titleEn, setTitleEn] = useState(initialTitle.en);
-  const [titleZh, setTitleZh] = useState(initialTitle.zh);
-  const [descriptionEn, setDescriptionEn] = useState(initialDescription.en);
-  const [descriptionZh, setDescriptionZh] = useState(initialDescription.zh);
-  const [selectedCoverId, setSelectedCoverId] = useState(getCoverImage(portfolio)?.id ?? null);
-  const [localFiles, setLocalFiles] = useState([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const localFilesRef = useRef([]);
-  const isCreateMode = !portfolio;
-  const coverCandidates = [
-    ...(portfolio?.images ?? []).map((image) => ({
-      id: image.id,
-      url: image.url,
-      source: "existing",
-    })),
-    ...localFiles.map((item) => ({
-      id: item.id,
-      url: item.previewUrl,
-      source: "staged",
-    })),
-  ];
-
-  function syncLocalFiles(updater) {
-    setLocalFiles((current) => {
-      const nextValue = typeof updater === "function" ? updater(current) : updater;
-      localFilesRef.current = nextValue;
-      return nextValue;
-    });
-  }
-
-  function appendLocalFiles(acceptedFiles) {
-    if (acceptedFiles.length === 0) {
-      return;
-    }
-
-    const nextFiles = acceptedFiles.map((file) => ({
-      id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
-
-    syncLocalFiles((current) => {
-      const merged = [...current, ...nextFiles];
-
-      setSelectedCoverId((currentCoverId) => currentCoverId ?? merged[0]?.id ?? null);
-
-      return merged;
-    });
-  }
-
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    accept: { "image/*": [] },
-    multiple: true,
-    noClick: true,
-    onDrop: appendLocalFiles,
-  });
-
-  useEffect(() => {
-    return () => {
-      localFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    };
-  }, []);
-
-  useEffect(() => {
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
-  async function handleSave() {
-    const nextTitleEn = titleEn.trim();
-    const nextTitleZh = titleZh.trim();
-    const nextDescriptionEn = descriptionEn.trim();
-    const nextDescriptionZh = descriptionZh.trim();
-
-    if (nextTitleEn.length > 90 || nextTitleZh.length > 90) {
-      setErrorMessage(copy.admin.titleTooLong);
-      return;
-    }
-
-    if (isCreateMode && localFiles.length === 0) {
-      setErrorMessage(copy.admin.selectImageFirst);
-      return;
-    }
-
-    setErrorMessage("");
-    setIsSaving(true);
-
-    try {
-      const uploadedImages =
-        localFiles.length > 0
-          ? await Promise.all(
-              localFiles.map(async (item) => ({
-                id: item.id,
-                url: await toDataUrl(item.file),
-                isCover: false,
-              })),
-            )
-          : undefined;
-
-      await onSave({
-        id: portfolio?.id,
-        title: {
-          en: nextTitleEn || nextTitleZh || copy.admin.untitled,
-          zh: nextTitleZh || nextTitleEn || copy.admin.untitled,
-        },
-        description: {
-          en: nextDescriptionEn || nextDescriptionZh || copy.admin.defaultDescription,
-          zh: nextDescriptionZh || nextDescriptionEn || copy.admin.defaultDescription,
-        },
-        coverImageId: selectedCoverId,
-        images: uploadedImages,
-      });
-
-      if (isCreateMode) {
-        localFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-        localFilesRef.current = [];
-        setLocalFiles([]);
-      }
-    } catch {
-      setErrorMessage(copy.admin.saveFailed);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  function handleRemoveLocalFile(fileId) {
-    const target = localFilesRef.current.find((item) => item.id === fileId);
-    if (target) {
-      URL.revokeObjectURL(target.previewUrl);
-    }
-
-    syncLocalFiles((current) => {
-      const nextFiles = current.filter((item) => item.id !== fileId);
-      setSelectedCoverId((currentCoverId) => {
-        if (currentCoverId !== fileId) {
-          return currentCoverId;
-        }
-        return (
-          getCoverImage(portfolio)?.id ??
-          nextFiles[0]?.id ??
-          null
-        );
-      });
-      return nextFiles;
-    });
-  }
-
-  function handleClearFiles() {
-    localFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    localFilesRef.current = [];
-    setLocalFiles([]);
-    setSelectedCoverId(getCoverImage(portfolio)?.id ?? null);
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0d0f14]/78 px-4 py-4 backdrop-blur-md sm:py-8"
-      onClick={onClose}
-    >
-      <div
-        className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2.1rem] border bg-[linear-gradient(180deg,#1f2129_0%,#171920_100%)] p-5 shadow-soft sm:p-8"
-        style={{ borderColor: "var(--site-border)" }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="mb-8 flex items-start justify-between gap-4 border-b border-[color:var(--site-border-soft)] pb-5">
-          <div>
-            <p className="mb-2 text-[11px] uppercase tracking-[0.45em] text-[color:var(--site-accent)]">
-              {copy.admin.mode}
-            </p>
-            <h3 className="font-display text-3xl text-[color:var(--site-text)]">
-              {portfolio ? copy.admin.editModalTitle : copy.admin.createModalTitle}
-            </h3>
-            <p className="mt-3 max-w-xl text-sm leading-7 text-[color:var(--site-muted)]">
-              {isCreateMode
-                ? copy.admin.createModalText
-                : copy.admin.editModalText}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={copy.detail.closeLightbox}
-            className="micro-button inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 text-[color:var(--site-muted-strong)]"
-          >
-            <IconClose />
-          </button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className="grid gap-5 lg:grid-cols-[0.92fr_1.08fr]">
-          <div className="rounded-[1.8rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0%,rgba(255,255,255,0.02)_100%)] p-5">
-            <p className="text-[10px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]">
-              {copy.admin.portfolioDetails}
-            </p>
-
-            <label className="mt-5 block">
-              <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">
-                {copy.admin.titleEnLabel}
-              </span>
-              <input
-                type="text"
-                maxLength={90}
-                value={titleEn}
-                onChange={(event) => setTitleEn(event.target.value)}
-                placeholder={copy.admin.titlePlaceholderEn}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-              />
-            </label>
-
-            <label className="mt-5 block">
-              <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">
-                {copy.admin.titleZhLabel}
-              </span>
-              <input
-                type="text"
-                maxLength={90}
-                value={titleZh}
-                onChange={(event) => setTitleZh(event.target.value)}
-                placeholder={copy.admin.titlePlaceholderZh}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-              />
-            </label>
-
-            <label className="mt-5 block">
-              <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">
-                {copy.admin.descriptionEnLabel}
-              </span>
-              <textarea
-                rows={4}
-                value={descriptionEn}
-                onChange={(event) => setDescriptionEn(event.target.value)}
-                placeholder={copy.admin.descriptionPlaceholderEn}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-              />
-            </label>
-
-            <label className="mt-5 block">
-              <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">
-                {copy.admin.descriptionZhLabel}
-              </span>
-              <textarea
-                rows={5}
-                value={descriptionZh}
-                onChange={(event) => setDescriptionZh(event.target.value)}
-                placeholder={copy.admin.descriptionPlaceholderZh}
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-              />
-            </label>
-
-            <div className="mt-5 rounded-[1.35rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/62 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--site-muted)]">
-                    {copy.admin.statusLabel}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-[color:var(--site-muted-strong)]">
-                    {isCreateMode
-                      ? localFiles.length > 0
-                        ? `${localFiles.length} ${copy.admin.localFilesSelected}`
-                        : copy.admin.waitingForImages
-                      : `${(portfolio?.images?.length || 0) + localFiles.length} ${copy.admin.imagesReadyAfterSave}`}
-                  </p>
-                </div>
-                <span className="rounded-full border border-[color:var(--site-border)] bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.28em] text-[color:var(--site-muted-strong)]">
-                  {isCreateMode ? copy.admin.createStatus : copy.admin.editStatus}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {isCreateMode ? (
-            <div className="rounded-[1.8rem] border bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0%,rgba(255,255,255,0.02)_100%)] px-5 py-5" style={{ borderColor: "var(--site-border)" }}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]">
-                    {copy.admin.stagingTitle}
-                  </p>
-                  <p className="mt-2 text-sm leading-7 text-[color:var(--site-muted)]">
-                    {copy.admin.stagingText}
-                  </p>
-                </div>
-                <span className="rounded-full border border-[color:var(--site-border)] bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.28em] text-[color:var(--site-muted-strong)]">
-                  {localFiles.length} files
-                </span>
-              </div>
-
-              <div
-                {...getRootProps()}
-                className={`mt-4 rounded-[1.4rem] border-2 border-dashed px-6 py-10 text-center transition ${
-                  isDragActive
-                    ? "border-[color:var(--site-accent)] bg-[color:var(--site-glow)]"
-                    : "border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/60 hover:border-[color:var(--site-border-strong)]"
-                }`}
-              >
-                <input {...getInputProps()} />
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-panel-soft)] text-[color:var(--site-accent)]">
-                  <IconUpload />
-                </div>
-                <p className="mt-4 text-sm font-medium text-[color:var(--site-text)]">
-                  {copy.admin.uploadHint}
-                </p>
-                <button
-                  type="button"
-                  onClick={open}
-                  className="micro-button mt-5 rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[color:var(--site-text)]"
-                >
-                  {copy.admin.browseFiles}
-                </button>
-              </div>
-
-              {localFiles.length > 0 ? (
-                <>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    {localFiles.map((item, index) => (
-                      <div
-                        key={item.id}
-                        className="relative overflow-hidden rounded-[1.2rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/72"
-                      >
-                        <img src={item.previewUrl} alt={item.file.name} className="aspect-square w-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveLocalFile(item.id)}
-                          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-[color:var(--site-bg-deep)]/82 text-[color:var(--site-text)]"
-                          aria-label={`${copy.admin.removeImagePrefix} ${item.file.name}`}
-                        >
-                          <IconClose />
-                        </button>
-                        {selectedCoverId === item.id || (selectedCoverId === null && index === 0) ? (
-                          <span className="absolute inset-x-2 bottom-2 rounded-full bg-[color:var(--site-bg-deep)]/88 px-2 py-1 text-[10px] uppercase tracking-[0.24em] text-[color:var(--site-accent)]">
-                            {copy.admin.cover}
-                          </span>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-3 rounded-[1.25rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/58 px-4 py-3">
-                    <p className="text-sm leading-6 text-[color:var(--site-muted)]">
-                      {copy.admin.createConfirmText}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleClearFiles}
-                      className="micro-button rounded-full border border-[color:var(--site-border)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[color:var(--site-muted)]"
-                    >
-                      {copy.admin.clearFiles}
-                    </button>
-                  </div>
-                </>
-              ) : null}
-
-              <div className="mt-4 rounded-[1.35rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/62 p-4">
-                <p className="text-[10px] uppercase tracking-[0.32em] text-[color:var(--site-muted)]">
-                  {copy.admin.coverSelection}
-                </p>
-                {coverCandidates.length > 0 ? (
-                  <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
-                    {coverCandidates.map((image) => (
-                      <div
-                        key={image.id}
-                        className={`relative overflow-hidden rounded-[18px] border transition ${
-                          selectedCoverId === image.id
-                            ? "border-[color:var(--site-accent)] ring-2 ring-[color:var(--site-accent)]/15"
-                            : "border-[color:var(--site-border)]"
-                        }`}
-                      >
-                        <button type="button" onClick={() => setSelectedCoverId(image.id)} className="block w-full">
-                          <img src={image.url} alt="" className="aspect-square h-full w-full object-cover" />
-                        </button>
-                        {image.source === "staged" ? (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleRemoveLocalFile(image.id);
-                            }}
-                            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-[color:var(--site-bg-deep)]/82 text-[color:var(--site-text)]"
-                            aria-label={copy.admin.removeStagedImage}
-                          >
-                            <IconClose />
-                          </button>
-                        ) : null}
-                        <span className="absolute left-2 top-2 rounded-full bg-[color:var(--site-bg-deep)]/88 px-2 py-1 text-[10px] uppercase tracking-[0.24em] text-[color:var(--site-muted-strong)]">
-                          {image.source === "staged" ? copy.admin.new : copy.admin.saved}
-                        </span>
-                        {selectedCoverId === image.id ? (
-                          <span className="absolute inset-x-2 bottom-2 rounded-full bg-[color:var(--site-bg-deep)]/88 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.24em] text-[color:var(--site-accent)]">
-                            {copy.admin.cover}
-                          </span>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm leading-7 text-[color:var(--site-muted)]">
-                    {copy.admin.emptyCoverCreate}
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-[1.8rem] border bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0%,rgba(255,255,255,0.02)_100%)] px-5 py-5" style={{ borderColor: "var(--site-border)" }}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]">
-                    {copy.admin.coverSelection}
-                  </p>
-                  <p className="mt-2 text-sm leading-7 text-[color:var(--site-muted)]">
-                    {copy.admin.coverSelectionText}
-                  </p>
-                </div>
-                <span className="rounded-full border border-[color:var(--site-border)] bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.28em] text-[color:var(--site-muted-strong)]">
-                  {coverCandidates.length} images
-                </span>
-              </div>
-
-              <div
-                {...getRootProps()}
-                className={`mt-4 rounded-[1.4rem] border-2 border-dashed px-6 py-8 text-center transition ${
-                  isDragActive
-                    ? "border-[color:var(--site-accent)] bg-[color:var(--site-glow)]"
-                    : "border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/60 hover:border-[color:var(--site-border-strong)]"
-                }`}
-              >
-                <input {...getInputProps()} />
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-panel-soft)] text-[color:var(--site-accent)]">
-                  <IconUpload />
-                </div>
-                <p className="mt-4 text-sm font-medium text-[color:var(--site-text)]">
-                  {copy.admin.uploadHintSecondary}
-                </p>
-                <button
-                  type="button"
-                  onClick={open}
-                  className="micro-button mt-5 rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[color:var(--site-text)]"
-                >
-                  {copy.admin.browseFiles}
-                </button>
-              </div>
-
-              {coverCandidates.length ? (
-                <>
-                  <div className="mt-4 grid max-h-[260px] grid-cols-3 gap-3 overflow-y-auto pr-1 sm:grid-cols-4">
-                    {coverCandidates.map((image) => (
-                      <div
-                        key={image.id}
-                        className={`relative overflow-hidden rounded-[18px] border transition ${
-                          selectedCoverId === image.id
-                            ? "border-[color:var(--site-accent)] ring-2 ring-[color:var(--site-accent)]/15"
-                            : "border-[color:var(--site-border)]"
-                        }`}
-                      >
-                        <button type="button" onClick={() => setSelectedCoverId(image.id)} className="block w-full">
-                          <img src={image.url} alt="" className="aspect-square h-full w-full object-cover" />
-                        </button>
-                        {image.source === "staged" ? (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleRemoveLocalFile(image.id);
-                            }}
-                            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-[color:var(--site-bg-deep)]/82 text-[color:var(--site-text)]"
-                            aria-label={copy.admin.removeStagedImage}
-                          >
-                            <IconClose />
-                          </button>
-                        ) : null}
-                        <span className="absolute left-2 top-2 rounded-full bg-[color:var(--site-bg-deep)]/88 px-2 py-1 text-[10px] uppercase tracking-[0.24em] text-[color:var(--site-muted-strong)]">
-                          {image.source === "staged" ? copy.admin.new : copy.admin.saved}
-                        </span>
-                        {selectedCoverId === image.id ? (
-                          <span className="absolute inset-x-2 bottom-2 rounded-full bg-[color:var(--site-bg-deep)]/88 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.24em] text-[color:var(--site-accent)]">
-                            {copy.admin.cover}
-                          </span>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="mt-3 text-sm leading-7 text-[color:var(--site-muted)]">
-                  {copy.admin.emptyCoverEdit}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-        </div>
-
-        {errorMessage ? (
-          <div className="mt-6 rounded-[1.25rem] border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-            {errorMessage}
-          </div>
-        ) : null}
-
-        <div className="mt-6 -mx-5 border-t border-[color:var(--site-border-soft)] bg-[linear-gradient(180deg,rgba(23,25,32,0.84)_0%,rgba(23,25,32,0.96)_100%)] px-5 pb-1 pt-5 backdrop-blur-md sm:-mx-8 sm:mt-8 sm:px-8">
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="micro-button rounded-full border border-[color:var(--site-border)] px-5 py-3 text-sm uppercase tracking-[0.3em] text-[color:var(--site-muted)]"
-          >
-            {copy.admin.cancel}
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving || (isCreateMode && localFiles.length === 0)}
-            className="micro-button rounded-full bg-[color:var(--site-accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-[#10131c] disabled:opacity-50"
-          >
-            {isSaving
-              ? copy.admin.processing
-              : isCreateMode
-                ? copy.admin.createPortfolio
-                : copy.admin.saveChanges}
-          </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProfileEditorModal({ profile, onClose, onSave, copy, locale }) {
-  const initialName = toLocalizedField(profile.name, initialProfile.name);
-  const initialRole = toLocalizedField(profile.role, initialProfile.role);
-  const initialIntro = toLocalizedField(profile.intro, initialProfile.intro);
-  const [nameEn, setNameEn] = useState(initialName.en);
-  const [nameZh, setNameZh] = useState(initialName.zh);
-  const [roleEn, setRoleEn] = useState(initialRole.en);
-  const [roleZh, setRoleZh] = useState(initialRole.zh);
-  const [email, setEmail] = useState(profile.email);
-  const [introEn, setIntroEn] = useState(initialIntro.en);
-  const [introZh, setIntroZh] = useState(initialIntro.zh);
-  const [avatarPreview, setAvatarPreview] = useState(profile.avatarUrl);
-  const [avatarFile, setAvatarFile] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    accept: { "image/*": [] },
-    multiple: false,
-    noClick: true,
-    onDrop: (acceptedFiles) => {
-      const file = acceptedFiles[0];
-      if (!file) {
-        return;
-      }
-
-      const previewUrl = URL.createObjectURL(file);
-      setAvatarFile((current) => {
-        if (current?.previewUrl) {
-          URL.revokeObjectURL(current.previewUrl);
-        }
-        return { file, previewUrl };
-      });
-      setAvatarPreview(previewUrl);
-    },
-  });
-
-  useEffect(() => {
-    return () => {
-      if (avatarFile?.previewUrl) {
-        URL.revokeObjectURL(avatarFile.previewUrl);
-      }
-    };
-  }, [avatarFile]);
-
-  async function handleSave() {
-    const nextNameEn = nameEn.trim();
-    const nextNameZh = nameZh.trim();
-    const nextRoleEn = roleEn.trim();
-    const nextRoleZh = roleZh.trim();
-    const nextEmail = email.trim();
-    const nextIntroEn = introEn.trim();
-    const nextIntroZh = introZh.trim();
-
-    if (!(nextNameEn || nextNameZh) || !(nextRoleEn || nextRoleZh) || !nextEmail) {
-      return;
-    }
-
-    setIsSaving(true);
-
-    await onSave({
-      name: {
-        en: nextNameEn || nextNameZh || getLocalizedText(initialProfile.name, "en"),
-        zh: nextNameZh || nextNameEn || getLocalizedText(initialProfile.name, "zh"),
-      },
-      role: {
-        en: nextRoleEn || nextRoleZh || getLocalizedText(initialProfile.role, "en"),
-        zh: nextRoleZh || nextRoleEn || getLocalizedText(initialProfile.role, "zh"),
-      },
-      email: nextEmail,
-      intro: {
-        en: nextIntroEn || nextIntroZh || getLocalizedText(initialProfile.intro, "en"),
-        zh: nextIntroZh || nextIntroEn || getLocalizedText(initialProfile.intro, "zh"),
-      },
-      avatarUrl: avatarFile ? await toDataUrl(avatarFile.file) : profile.avatarUrl,
-    });
-
-    setIsSaving(false);
-  }
-
-  return (
-    <div className="fixed inset-0 z-[81] flex items-center justify-center bg-[#0d0f14]/78 px-4 py-8 backdrop-blur-md" onClick={onClose}>
-      <div
-        className="w-full max-w-3xl rounded-[2.1rem] border bg-[linear-gradient(180deg,#1f2129_0%,#171920_100%)] p-6 shadow-soft sm:p-8"
-        style={{ borderColor: "var(--site-border)" }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="mb-8 flex items-start justify-between gap-4 border-b border-[color:var(--site-border-soft)] pb-5">
-          <div>
-            <p className="mb-2 text-[11px] uppercase tracking-[0.45em] text-[color:var(--site-accent)]">
-              {copy.admin.mode}
-            </p>
-            <h3 className="font-display text-3xl text-[color:var(--site-text)]">{copy.admin.profileTitle}</h3>
-            <p className="mt-3 max-w-xl text-sm leading-7 text-[color:var(--site-muted)]">
-              {copy.admin.profileText}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={copy.admin.cancel}
-            className="micro-button inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 text-[color:var(--site-muted-strong)]"
-          >
-            <IconClose />
-          </button>
-        </div>
-
-        <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
-          <div className="rounded-[1.8rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0%,rgba(255,255,255,0.02)_100%)] p-5">
-            <p className="text-[10px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]">
-              {copy.admin.avatar}
-            </p>
-
-            <div
-              {...getRootProps()}
-              className={`mt-5 rounded-[1.5rem] border-2 border-dashed px-5 py-6 text-center transition ${
-                isDragActive
-                  ? "border-[color:var(--site-accent)] bg-[color:var(--site-glow)]"
-                  : "border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/60 hover:border-[color:var(--site-border-strong)]"
-              }`}
-            >
-              <input {...getInputProps()} />
-              <img
-                src={avatarPreview}
-                alt={getLocalizedText(profile.name, locale)}
-                className="mx-auto h-40 w-40 rounded-[1.5rem] object-cover ring-1 ring-white/10"
-              />
-              <p className="mt-4 text-sm font-medium text-[color:var(--site-text)]">
-                {copy.admin.uploadHint}
-              </p>
-              <button
-                type="button"
-                onClick={open}
-                className="micro-button mt-5 rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[color:var(--site-text)]"
-              >
-                {copy.admin.browseFiles}
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-[1.8rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.035)_0%,rgba(255,255,255,0.02)_100%)] p-5">
-            <p className="text-[10px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]">
-              {copy.admin.photographerDetails}
-            </p>
-
-            <div className="mt-5 space-y-5">
-              <label className="block">
-                <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">{copy.admin.nameEnLabel}</span>
-                <input
-                  type="text"
-                  value={nameEn}
-                  onChange={(event) => setNameEn(event.target.value)}
-                  placeholder={copy.admin.namePlaceholderEn}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">{copy.admin.nameZhLabel}</span>
-                <input
-                  type="text"
-                  value={nameZh}
-                  onChange={(event) => setNameZh(event.target.value)}
-                  placeholder={copy.admin.namePlaceholderZh}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">{copy.admin.roleEnLabel}</span>
-                <input
-                  type="text"
-                  value={roleEn}
-                  onChange={(event) => setRoleEn(event.target.value)}
-                  placeholder={copy.admin.rolePlaceholderEn}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">{copy.admin.roleZhLabel}</span>
-                <input
-                  type="text"
-                  value={roleZh}
-                  onChange={(event) => setRoleZh(event.target.value)}
-                  placeholder={copy.admin.rolePlaceholderZh}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">{copy.admin.emailLabel}</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">{copy.admin.introEnLabel}</span>
-                <textarea
-                  rows={4}
-                  value={introEn}
-                  onChange={(event) => setIntroEn(event.target.value)}
-                  placeholder={copy.admin.introPlaceholderEn}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">{copy.admin.introZhLabel}</span>
-                <textarea
-                  rows={4}
-                  value={introZh}
-                  onChange={(event) => setIntroZh(event.target.value)}
-                  placeholder={copy.admin.introPlaceholderZh}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-black placeholder:text-slate-500 outline-none transition focus:border-[color:var(--site-accent)]"
-                />
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8 flex flex-col gap-3 border-t border-[color:var(--site-border-soft)] pt-5 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="micro-button rounded-full border border-[color:var(--site-border)] px-5 py-3 text-sm uppercase tracking-[0.3em] text-[color:var(--site-muted)]"
-          >
-            {copy.admin.cancel}
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="micro-button rounded-full bg-[color:var(--site-accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-[#10131c] disabled:opacity-50"
-          >
-            {isSaving ? copy.admin.saving : copy.admin.saveProfile}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ConfirmDialog({ title, description, onCancel, onConfirm, copy }) {
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0d0f14]/78 px-4 backdrop-blur-md">
-      <div
-        className="w-full max-w-md rounded-[2rem] border bg-[linear-gradient(180deg,#1f2129_0%,#171920_100%)] p-6 shadow-soft"
-        style={{ borderColor: "var(--site-border)" }}
-      >
-        <p className="text-[11px] uppercase tracking-[0.35em] text-red-300">{copy.confirm.deleteLabel}</p>
-        <h3 className="mt-3 font-display text-3xl text-[color:var(--site-text)]">{title}</h3>
-        <p className="mt-4 text-sm leading-7 text-[color:var(--site-muted)]">{description}</p>
-
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="micro-button rounded-full border border-[color:var(--site-border)] px-5 py-3 text-sm uppercase tracking-[0.3em] text-[color:var(--site-muted)]"
-          >
-            {copy.confirm.cancel}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="micro-button rounded-full border border-red-500/40 px-5 py-3 text-sm uppercase tracking-[0.3em] text-red-300"
-          >
-            {copy.confirm.delete}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StagingUploadArea({ onConfirmUpload, copy }) {
-  const [stagedFiles, setStagedFiles] = useState([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const stagedFilesRef = useRef([]);
-
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    accept: { "image/*": [] },
-    multiple: true,
-    noClick: true,
-    onDrop: (acceptedFiles) => {
-      if (acceptedFiles.length === 0) {
-        return;
-      }
-
-      const nextFiles = acceptedFiles.map((file) => ({
-        id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
-        file,
-        previewUrl: URL.createObjectURL(file),
-      }));
-
-      setStagedFiles((current) => {
-        const merged = [...current, ...nextFiles];
-        stagedFilesRef.current = merged;
-        return merged;
-      });
-    },
-  });
-
-  useEffect(() => {
-    return () => {
-      stagedFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    };
-  }, []);
-
-  async function handleConfirmUpload() {
-    if (stagedFiles.length === 0) {
-      return;
-    }
-
-    setIsUploading(true);
-
-    const uploadedImages = await Promise.all(
-      stagedFiles.map(async (item, index) => ({
-        id: Date.now() + index + Math.floor(Math.random() * 1000),
-        url: await toDataUrl(item.file),
-        isCover: false,
-      })),
-    );
-
-    stagedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    stagedFilesRef.current = [];
-    await onConfirmUpload(uploadedImages);
-    setStagedFiles([]);
-    setIsUploading(false);
-  }
-
-  function handleClear() {
-    stagedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    stagedFilesRef.current = [];
-    setStagedFiles([]);
-  }
-
-  return (
-    <section className="rounded-[2rem] border border-[color:var(--site-border)] bg-[color:var(--site-panel-soft)] p-5 shadow-soft sm:p-6">
-      <div
-        {...getRootProps()}
-        className={`rounded-[1.75rem] border-2 border-dashed px-6 py-10 text-center transition ${
-          isDragActive
-            ? "border-[color:var(--site-accent)] bg-[color:var(--site-glow)]"
-            : "border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/68 hover:border-[color:var(--site-border-strong)]"
-        }`}
-      >
-        <input {...getInputProps()} />
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-panel-soft)] text-[color:var(--site-accent)]">
-          <IconUpload />
-        </div>
-        <p className="mt-4 text-sm font-medium text-[color:var(--site-text)]">
-          {copy.upload.hint}
-        </p>
-        <p className="mt-2 text-sm leading-7 text-[color:var(--site-muted)]">
-          {copy.upload.subtext}
-        </p>
-        <button
-          type="button"
-          onClick={open}
-          className="micro-button mt-5 rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[color:var(--site-text)]"
-        >
-          {copy.upload.browse}
-        </button>
-      </div>
-
-      {stagedFiles.length > 0 ? (
-        <div className="mt-5">
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {stagedFiles.map((item) => (
-              <div
-                key={item.id}
-                className="overflow-hidden rounded-[1.2rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/72"
-              >
-                <img src={item.previewUrl} alt={item.file.name} className="aspect-square w-full object-cover" />
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 flex flex-col gap-3 border-t border-[color:var(--site-border-soft)] pt-5 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={isUploading}
-              className="micro-button rounded-full border border-[color:var(--site-border)] px-5 py-3 text-sm uppercase tracking-[0.28em] text-[color:var(--site-muted)] disabled:opacity-50"
-            >
-              {copy.upload.cancel}
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirmUpload}
-              disabled={isUploading}
-              className="micro-button rounded-full bg-[color:var(--site-accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.28em] text-[#10131c] disabled:opacity-60"
-            >
-              {isUploading ? copy.upload.uploading : copy.upload.confirm}
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function PortfolioLightbox({ portfolio, imageIndex, onClose, onNavigate, copy, locale }) {
-  const currentImage = portfolio.images[imageIndex];
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-      if (event.key === "ArrowLeft") {
-        onNavigate("prev");
-      }
-      if (event.key === "ArrowRight") {
-        onNavigate("next");
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose, onNavigate]);
-
-  return (
-    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/90 px-4 py-8 backdrop-blur-md" onClick={onClose}>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label={copy.detail.closeLightbox}
-        className="absolute right-5 top-5 z-10 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-[color:var(--site-text)] transition hover:text-[color:var(--site-accent)]"
-      >
-        <IconClose />
-      </button>
-
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onNavigate("prev");
-        }}
-        aria-label={copy.detail.previousImage}
-        className="absolute left-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-[color:var(--site-text)] transition hover:text-[color:var(--site-accent)] sm:left-6"
-      >
-        <IconArrow />
-      </button>
-
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onNavigate("next");
-        }}
-        aria-label={copy.detail.nextImage}
-        className="absolute right-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-[color:var(--site-text)] transition hover:text-[color:var(--site-accent)] sm:right-6"
-      >
-        <IconArrow direction="right" />
-      </button>
-
-      <div className="relative w-full max-w-6xl" onClick={(event) => event.stopPropagation()}>
-        <div className="overflow-hidden rounded-[1.8rem]">
-          <img
-            src={currentImage.url}
-            alt={`${getLocalizedText(portfolio.title, locale)} ${imageIndex + 1}`}
-            className="max-h-[82vh] w-full object-contain"
-          />
-        </div>
-
-        <div className="mt-5 flex items-center justify-between text-[11px] uppercase tracking-[0.35em] text-[color:var(--site-muted)]">
-          <span>{getLocalizedText(portfolio.title, locale)}</span>
-          <span className="text-[color:var(--site-accent)]">
-            {imageIndex + 1} / {portfolio.images.length}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PortfolioPhotoCard({ image, isAdmin, onOpen, onSetCover, onDelete, copy }) {
-  return (
-    <article className="group relative overflow-hidden rounded-[1.6rem] border border-[color:var(--site-border)] bg-[color:var(--site-panel-soft)]">
-      <button type="button" onClick={onOpen} className="block w-full text-left">
-        <img src={image.url} alt="" className="aspect-[0.92/1] h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
-      </button>
-
-      {image.isCover ? (
-        <span className="absolute left-4 top-4 rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/82 px-3 py-1 text-[10px] uppercase tracking-[0.26em] text-[color:var(--site-accent)]">
-          {copy.admin.cover}
-        </span>
-      ) : null}
-
-      {isAdmin ? (
-        <div className="absolute inset-0 flex items-end bg-black/0 p-4 opacity-0 transition duration-300 group-hover:bg-black/42 group-hover:opacity-100">
-          <div className="grid w-full gap-2">
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onSetCover();
-              }}
-              className="micro-button rounded-full bg-[color:var(--site-bg-deep)]/82 px-4 py-3 text-xs uppercase tracking-[0.28em] text-[color:var(--site-text)]"
-            >
-              {copy.detail.setCover}
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onDelete();
-              }}
-              className="micro-button rounded-full bg-[color:var(--site-bg-deep)]/82 px-4 py-3 text-xs uppercase tracking-[0.28em] text-red-300"
-            >
-              {copy.detail.delete}
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function DetailView({
-  portfolio,
-  isAdmin,
-  onBack,
-  onEditPortfolio,
-  onRequestDeletePortfolio,
-  onUploadImages,
-  onSetCover,
-  onDeleteImage,
-  copy,
-  locale,
-}) {
-  const [lightboxIndex, setLightboxIndex] = useState(null);
-
-  return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-10 lg:py-14">
-      <section className="rounded-[2.2rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-soft sm:p-8">
-        <div className="flex flex-col gap-5 border-b border-[color:var(--site-border-soft)] pb-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <button
-              type="button"
-              onClick={onBack}
-              className="micro-button mb-5 inline-flex items-center gap-2 rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 px-4 py-2 text-[11px] uppercase tracking-[0.3em] text-[color:var(--site-muted-strong)]"
-            >
-              <IconArrow />
-              {copy.detail.back}
-            </button>
-            <p className="text-[11px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]">
-              {copy.detail.label}
-            </p>
-            <h2 className="mt-4 font-display text-4xl font-semibold tracking-[-0.05em] text-[color:var(--site-text)] sm:text-5xl">
-              {getLocalizedText(portfolio.title, locale)}
-            </h2>
-            <p className="mt-5 max-w-2xl text-base leading-8 text-[color:var(--site-muted)]">
-              {getLocalizedText(portfolio.description, locale)}
-            </p>
-          </div>
-
-          {isAdmin ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={onEditPortfolio}
-                className="micro-button rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/72 px-5 py-3 text-sm uppercase tracking-[0.28em] text-[color:var(--site-text)]"
-              >
-                {copy.detail.editPortfolio}
-              </button>
-              <button
-                type="button"
-                onClick={onRequestDeletePortfolio}
-                className="micro-button rounded-full border border-red-500/40 px-5 py-3 text-sm uppercase tracking-[0.28em] text-red-300"
-              >
-                {copy.detail.deletePortfolio}
-              </button>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-8">
-          {isAdmin ? (
-            <StagingUploadArea onConfirmUpload={onUploadImages} copy={copy} />
-          ) : (
-            <div className="rounded-[1.8rem] border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/58 px-6 py-6 text-sm leading-7 text-[color:var(--site-muted)]">
-              {copy.detail.uploadLocked}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {portfolio.images.map((image, index) => (
-            <PortfolioPhotoCard
-              key={image.id}
-              image={image}
-              isAdmin={isAdmin}
-              copy={copy}
-              onOpen={() => setLightboxIndex(index)}
-              onSetCover={() => onSetCover(image.id)}
-              onDelete={() => onDeleteImage(image.id)}
-            />
-          ))}
-        </div>
-      </section>
-
-      {lightboxIndex !== null ? (
-        <PortfolioLightbox
-          portfolio={portfolio}
-          imageIndex={lightboxIndex}
-          copy={copy}
-          locale={locale}
-          onClose={() => setLightboxIndex(null)}
-          onNavigate={(direction) => {
-            setLightboxIndex((current) => {
-              if (current === null) {
-                return current;
-              }
-              if (direction === "next") {
-                return (current + 1) % portfolio.images.length;
-              }
-              return (current - 1 + portfolio.images.length) % portfolio.images.length;
-            });
-          }}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function BookingProjectsSection({ copy, locale }) {
-  const [bookingForm, setBookingForm] = useState({
-    name: "",
-    project: "",
-    preferredDate: "",
-  });
-  const [isSubmitted, setIsSubmitted] = useState(false);
-
-  function handleSubmit(event) {
-    event.preventDefault();
-    setIsSubmitted(true);
-  }
-
-  return (
-    <section id="booking" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-10 lg:py-24">
-      <RevealBlock className="mb-8 border-b border-[color:var(--site-border)] pb-6">
-        <p className="mb-3 text-[11px] uppercase tracking-[0.45em] text-[color:var(--site-accent)]">
-          {copy.booking.label}
-        </p>
-        <h2 className={`font-display text-4xl font-semibold text-[color:var(--site-text)] sm:text-5xl ${locale === "zh" ? "tracking-[-0.03em]" : "tracking-[-0.05em]"}`}>
-          {copy.booking.heading}
-        </h2>
-      </RevealBlock>
-
-      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
-        <RevealBlock className="min-w-0 overflow-hidden rounded-[2rem] border bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-soft sm:p-8" style={{ borderColor: "var(--site-border)" }}>
-          <p className="mb-3 text-[11px] uppercase tracking-[0.45em] text-[color:var(--site-accent)]">
-            {copy.booking.bookingLabel}
-          </p>
-          <h3 className={`font-display text-4xl font-semibold text-[color:var(--site-text)] sm:text-5xl ${locale === "zh" ? "tracking-[-0.03em]" : "tracking-[-0.05em]"}`}>
-            {copy.booking.bookingHeading}
-          </h3>
-          <p className="mt-4 max-w-xl text-sm leading-7 text-[color:var(--site-muted)]">
-            {copy.booking.bookingText}
-          </p>
-
-          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-            <input
-              type="text"
-              placeholder={copy.booking.namePlaceholder}
-              value={bookingForm.name}
-              onChange={(event) => setBookingForm((current) => ({ ...current, name: event.target.value }))}
-              className="w-full rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/76 px-4 py-3 text-[color:var(--site-text)] outline-none transition focus:border-[color:var(--site-accent)]"
-            />
-            <textarea
-              rows={4}
-              placeholder={copy.booking.briefPlaceholder}
-              value={bookingForm.project}
-              onChange={(event) => setBookingForm((current) => ({ ...current, project: event.target.value }))}
-              className="w-full rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/76 px-4 py-3 text-[color:var(--site-text)] outline-none transition focus:border-[color:var(--site-accent)]"
-            />
-            <input
-              type="date"
-              value={bookingForm.preferredDate}
-              onChange={(event) => setBookingForm((current) => ({ ...current, preferredDate: event.target.value }))}
-              className="w-full rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/76 px-4 py-3 text-[color:var(--site-text)] outline-none transition focus:border-[color:var(--site-accent)]"
-            />
-
-            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
-              <button
-                type="submit"
-                className="rounded-full bg-[color:var(--site-accent)] px-6 py-3 text-xs font-semibold uppercase tracking-[0.34em] text-[#10131c] transition hover:bg-[color:var(--site-accent-strong)]"
-              >
-                {copy.booking.bookNow}
-              </button>
-              <a
-                href={LUMINA_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs uppercase tracking-[0.34em] text-[color:var(--site-muted)] transition hover:text-[color:var(--site-accent)]"
-              >
-                {copy.booking.connectLumina}
-              </a>
-            </div>
-
-            {isSubmitted ? (
-              <p className="rounded-[1.4rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/68 px-4 py-4 text-sm text-[color:var(--site-muted)]">
-                {copy.booking.savedDraft}
-              </p>
-            ) : null}
-          </form>
-        </RevealBlock>
-
-        <RevealBlock delay={120} className="min-w-0 overflow-hidden rounded-[2rem] border bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-soft sm:p-8" style={{ borderColor: "var(--site-border)" }}>
-          <p className="mb-3 text-[11px] uppercase tracking-[0.45em] text-[color:var(--site-accent)]">
-            {copy.booking.sideProjectsLabel}
-          </p>
-          <h3 className="font-display text-4xl font-semibold tracking-[-0.05em] text-[color:var(--site-text)]">
-            {copy.booking.sideProjectsHeading}
-          </h3>
-          <div className="mt-8 grid gap-4">
-            {sideProjects.map((project) => (
-              <article
-                key={project.name}
-                className="rounded-[1.5rem] border bg-[color:var(--site-bg-deep)]/72 p-5"
-                style={{
-                  borderColor: "var(--site-border)",
-                }}
-              >
-                <h4 className="font-display text-2xl font-semibold tracking-[-0.04em] text-[color:var(--site-text)]">{project.name}</h4>
-                <p className="mt-3 text-sm leading-7 text-[color:var(--site-muted)]">
-                  {getLocalizedText(project.description, locale)}
-                </p>
-                <a
-                  href={project.href}
-                  target={project.href.startsWith("http") ? "_blank" : undefined}
-                  rel={project.href.startsWith("http") ? "noreferrer" : undefined}
-                  className="mt-5 inline-block text-xs uppercase tracking-[0.34em] text-[color:var(--site-accent)] transition hover:text-[color:var(--site-text)]"
-                >
-                  {copy.booking.learnMore}
-                </a>
-              </article>
-            ))}
-          </div>
-        </RevealBlock>
-      </div>
-    </section>
-  );
-}
-
-function Footer({ profile, copy, locale }) {
-  return (
-    <footer id="footer" className="mx-auto max-w-7xl border-t border-[color:var(--site-border-soft)] px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
-      <div className="rounded-[1.9rem] border border-[color:var(--site-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_100%)] p-6 shadow-soft sm:p-8">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-[color:var(--site-muted)]">
-              © 2026 {getLocalizedText(profile.name, locale)}
-            </p>
-            <p className="mt-3 max-w-md text-sm leading-6 text-[color:var(--site-muted)]">
-              {copy.footer.text}
-            </p>
-            <a
-              href={LUMINA_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 inline-block text-[11px] uppercase tracking-[0.34em] text-[color:var(--site-accent)]"
-            >
-              {copy.footer.poweredBy}
-            </a>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {["IG", "BE", "LI"].map((item) => (
-              <a
-                key={item}
-                href="#"
-                aria-label={item}
-                className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-panel-soft)] text-[11px] uppercase tracking-[0.25em] text-[color:var(--site-muted)] transition hover:text-[color:var(--site-accent)]"
-              >
-                {item}
-              </a>
-            ))}
-          </div>
-        </div>
-      </div>
-    </footer>
-  );
-}
 
 export default function App() {
+  const {
+    getInitialLocale,
+    persistLocale,
+    loadPortfoliosFromStorage,
+    savePortfoliosToStorage,
+    loadProfileFromStorage,
+    saveProfileToStorage,
+    createBackupPayload,
+    normalizeBackupPayload,
+  } = usePersistence({ toPortfolioShape, toProfileShape });
   const [portfolios, setPortfolios] = useState(initialPortfolios.map(toPortfolioShape));
   const [profile, setProfile] = useState(toProfileShape(initialProfile));
-  const [locale, setLocale] = useState(() => {
-    if (typeof window === "undefined") {
-      return "en";
-    }
-    return window.localStorage.getItem(LOCALE_STORAGE_KEY) === "zh" ? "zh" : "en";
-  });
+  const [locale, setLocale] = useState(() => getInitialLocale());
   const [loaded, setLoaded] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [authUser, setAuthUser] = useState(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [isPastHero, setIsPastHero] = useState(false);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState(null);
   const [editorState, setEditorState] = useState({ open: false, portfolio: null });
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [backupFile, setBackupFile] = useState(null);
   const [backupStatus, setBackupStatus] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  const [view, setView] = useState("home");
+  const [luminaReportData, setLuminaReportData] = useState(null);
+  const [clientSlug, setClientSlug] = useState("");
+  const [proofSlug, setProofSlug] = useState(null);
+
+  useEffect(() => {
+    // 强制加载日志，确认代码运行
+    console.log('🔥 App.jsx URL Parser Running');
+
+    const params = new URLSearchParams(window.location.search);
+    const adminParam = params.get('admin');
+    const slug = params.get('slug');
+
+    console.log('🔍 Extracted Slug from Params:', slug);
+
+    if (adminParam === 'true') {
+      setView('admin');
+    } else if (slug) {
+      setView('client-portal');
+      setClientSlug(slug);
+    }
+  }, []);
+
   const copy = siteCopy[locale];
+  const hasAuthConfig = isSupabaseConfigured();
+  const userEmail = authUser?.email?.trim() || "";
+  const isAdmin = Boolean(userEmail && ADMIN_EMAIL && userEmail.toLowerCase() === ADMIN_EMAIL);
+  const selectedPortfolio = useMemo(
+    () => portfolios.find((item) => item.id === selectedPortfolioId) || null,
+    [portfolios, selectedPortfolioId],
+  );
+
+  useEffect(() => {
+    if (!hasAuthConfig || !supabase) {
+      setAuthUser(null);
+      return undefined;
+    }
+
+    let active = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) {
+        return;
+      }
+
+      setAuthUser(data.session?.user ?? null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setAuthUser(nextSession?.user ?? null);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [hasAuthConfig]);
 
   useEffect(() => {
     let mounted = true;
@@ -3140,10 +1353,10 @@ export default function App() {
         loadProfileFromStorage(),
       ]);
       if (mounted && storedPortfolios) {
-        setPortfolios(storedPortfolios.map(toPortfolioShape));
+        setPortfolios(storedPortfolios);
       }
       if (mounted && storedProfile) {
-        setProfile(toProfileShape(storedProfile));
+        setProfile(storedProfile);
       }
       if (mounted) {
         setLoaded(true);
@@ -3155,7 +1368,7 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadPortfoliosFromStorage, loadProfileFromStorage]);
 
   useEffect(() => {
     if (!loaded) {
@@ -3163,7 +1376,7 @@ export default function App() {
     }
 
     savePortfoliosToStorage(portfolios);
-  }, [portfolios, loaded]);
+  }, [portfolios, loaded, savePortfoliosToStorage]);
 
   useEffect(() => {
     if (!loaded) {
@@ -3171,15 +1384,17 @@ export default function App() {
     }
 
     saveProfileToStorage(profile);
-  }, [profile, loaded]);
+  }, [profile, loaded, saveProfileToStorage]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
-    }
+    persistLocale(locale);
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+    document.documentElement.classList.toggle("lang-en", locale === "en");
+    document.documentElement.classList.toggle("lang-zh", locale === "zh");
+    document.body.classList.toggle("lang-en", locale === "en");
+    document.body.classList.toggle("lang-zh", locale === "zh");
     document.title = locale === "zh" ? "Eldon Studio 摄影官网" : "Eldon Studio";
-  }, [locale]);
+  }, [locale, persistLocale]);
 
   useEffect(() => {
     function blockMediaContext(event) {
@@ -3203,12 +1418,65 @@ export default function App() {
     };
   }, []);
 
-  const selectedPortfolio = useMemo(
-    () => portfolios.find((item) => item.id === selectedPortfolioId) || null,
-    [portfolios, selectedPortfolioId],
-  );
+  useEffect(() => {
+    if (selectedPortfolio) {
+      setIsPastHero(true);
+      return undefined;
+    }
+
+    let frameId = null;
+
+    function handleScroll() {
+      if (frameId !== null) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        const nextValue = window.scrollY > window.innerHeight - 110;
+        setIsPastHero((current) => (current === nextValue ? current : nextValue));
+      });
+    }
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [selectedPortfolio]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      return;
+    }
+
+    setEditorState((current) => (current.open ? { open: false, portfolio: null } : current));
+    setProfileEditorOpen(false);
+    setBackupFile(null);
+    setBackupStatus(null);
+    setConfirmState(null);
+  }, [isAdmin]);
+
+  async function handleSignOut() {
+    if (!supabase) {
+      return;
+    }
+
+    await supabase.auth.signOut();
+    setAuthModalOpen(false);
+  }
 
   async function handleSavePortfolio({ id, title, description, coverImageId, images }) {
+    if (!isAdmin) {
+      return;
+    }
+
     let createdPortfolioId = null;
 
     setPortfolios((current) => {
@@ -3269,7 +1537,21 @@ export default function App() {
     }
   }
 
-  function handleDeletePortfolio(id) {
+  async function handleDeletePortfolio(id) {
+    if (!isAdmin) {
+      return;
+    }
+
+    const targetPortfolio = portfolios.find((portfolio) => portfolio.id === id);
+    const imagePaths = (targetPortfolio?.images || []).map((image) => image.path).filter(Boolean);
+
+    try {
+      await deleteImagesFromCloud(imagePaths);
+    } catch (error) {
+      console.error("Failed to delete portfolio images from cloud storage.", error);
+      return;
+    }
+
     setPortfolios((current) => current.filter((portfolio) => portfolio.id !== id));
     setConfirmState(null);
     if (selectedPortfolioId === id) {
@@ -3278,7 +1560,7 @@ export default function App() {
   }
 
   function handleUploadImages(images) {
-    if (!selectedPortfolio) {
+    if (!isAdmin || !selectedPortfolio) {
       return;
     }
 
@@ -3303,7 +1585,7 @@ export default function App() {
   }
 
   function handleSetCover(imageId) {
-    if (!selectedPortfolio) {
+    if (!isAdmin || !selectedPortfolio) {
       return;
     }
 
@@ -3322,8 +1604,17 @@ export default function App() {
     );
   }
 
-  function handleDeleteImage(imageId) {
-    if (!selectedPortfolio) {
+  async function handleDeleteImage(imageId) {
+    if (!isAdmin || !selectedPortfolio) {
+      return;
+    }
+
+    const targetImage = selectedPortfolio.images.find((image) => image.id === imageId);
+
+    try {
+      await deleteImagesFromCloud([targetImage?.path].filter(Boolean));
+    } catch (error) {
+      console.error("Failed to delete portfolio image from cloud storage.", error);
       return;
     }
 
@@ -3345,6 +1636,10 @@ export default function App() {
   }
 
   function openCreatePortfolio() {
+    if (!isAdmin) {
+      return;
+    }
+
     setConfirmState(null);
     setSelectedPortfolioId(null);
     setEditorState({ open: true, portfolio: null });
@@ -3360,7 +1655,7 @@ export default function App() {
   }
 
   function handleExportBackup() {
-    if (typeof window === "undefined") {
+    if (!isAdmin || typeof window === "undefined") {
       return;
     }
 
@@ -3382,6 +1677,10 @@ export default function App() {
   }
 
   async function handleRestoreBackup() {
+    if (!isAdmin) {
+      return;
+    }
+
     if (!backupFile) {
       setBackupStatus({ tone: "error", message: copy.admin.backupSelectFirst });
       return;
@@ -3418,58 +1717,128 @@ export default function App() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-[color:var(--site-bg)] text-[color:var(--site-text)]" lang={locale === "zh" ? "zh-CN" : "en"}>
-      <LanguageToggle locale={locale} onToggle={setLocale} />
+  const onOpenLab = () => {
+    setSelectedPortfolioId(null);
+    setView("lab");
+    window.scrollTo(0, 0);
+  };
 
+  return (
+    <div
+      className={`min-h-screen bg-[color:var(--site-bg)] text-[color:var(--site-text)] ${locale === "zh" ? "lang-zh" : "lang-en"}`}
+      lang={locale === "zh" ? "zh-CN" : "en"}
+    >
       {selectedPortfolio ? (
-        <DetailView
-          portfolio={selectedPortfolio}
+        <DetailUtilityBar
+          locale={locale}
+          onToggleLocale={setLocale}
+          copy={copy}
+          userEmail={userEmail}
           isAdmin={isAdmin}
+          onOpenAuth={() => setAuthModalOpen(true)}
+          onSignOut={handleSignOut}
+        />
+      ) : view === "client-portal" || view === "admin" ? null : (
+        <ImmersiveNavbar
+          profile={profile}
           copy={copy}
           locale={locale}
-          onBack={() => setSelectedPortfolioId(null)}
-          onEditPortfolio={() => setEditorState({ open: true, portfolio: selectedPortfolio })}
-          onRequestDeletePortfolio={() =>
-            setConfirmState({
-              title: copy.confirm.deletePortfolioTitle,
-              description: copy.confirm.deleteDetailPortfolioText,
-              onConfirm: () => handleDeletePortfolio(selectedPortfolio.id),
-            })
-          }
-          onUploadImages={handleUploadImages}
-          onSetCover={handleSetCover}
-          onDeleteImage={(imageId) =>
-            setConfirmState({
-              title: copy.confirm.deleteImageTitle,
-              description: copy.confirm.deleteImageText,
-              onConfirm: () => handleDeleteImage(imageId),
-            })
-          }
+          isSolid={isPastHero}
+          isAdmin={isAdmin}
+          userEmail={userEmail}
+          onToggleLocale={setLocale}
+          onOpenAuth={() => setAuthModalOpen(true)}
+          onSignOut={handleSignOut}
+          isLabView={view === "lab"}
+          isBookingView={view === "booking"}
+          onOpenLab={onOpenLab}
+          onOpenBooking={() => {
+            setSelectedPortfolioId(null);
+            setView("booking");
+            window.scrollTo(0, 0);
+          }}
+          onOpenAdmin={() => {
+            setSelectedPortfolioId(null);
+            setView("admin");
+            window.scrollTo(0, 0);
+          }}
+          onGoHome={() => setView("home")}
         />
-      ) : (
+      )}
+
+      {view === "client-portal" ? (
+        <React.Suspense fallback={<div className="h-screen bg-[#131313]" />}>
+          <ClientPortalPage slug={clientSlug} />
+        </React.Suspense>
+      ) : view === "booking" ? (
         <>
-          <HeroSection
-            portfolios={portfolios}
-            profile={profile}
-            isAdmin={isAdmin}
-            onEditProfile={() => setProfileEditorOpen(true)}
-            copy={copy}
-            locale={locale}
+          <div className="min-h-screen pt-24">
+            <BookingProjectsSection copy={copy} locale={locale} luminaUrl={LUMINA_URL} isAdmin={isAdmin} />
+          </div>
+          <Footer profile={profile} copy={copy} locale={locale} luminaUrl={LUMINA_URL} />
+        </>
+      ) : view === "lumina-report" ? (
+        <React.Suspense fallback={<div className="h-screen bg-black" />}>
+          <LuminaReport
+            imageData={luminaReportData?.imageData}
+            onBook={() => setView("booking")}
+            onGoHome={() => setView("home")}
           />
-          <PracticeSection copy={copy} locale={locale} />
-          <StorySection portfolios={portfolios} copy={copy} locale={locale} />
-          {isAdmin ? (
-            <AdminDataPanel
+        </React.Suspense>
+      ) : view === "lab" || view === "client" || view === "admin" || selectedPortfolio ? (
+        <React.Suspense fallback={<div className="h-screen bg-[#131313]" />}>
+          {view === "lab" ? (
+            <LuminaLabPage copy={copy} locale={locale} />
+          ) : view === "client" ? (
+            <ClientPortalPage slug={clientSlug} onGoHome={() => setView("home")} />
+          ) : view === "admin" ? (
+            <AdminDashboardPage isAdmin={isAdmin} onGoHome={() => setView("home")} />
+          ) : (
+            <DetailView
+              portfolio={selectedPortfolio}
+              isAdmin={isAdmin}
               copy={copy}
               locale={locale}
-              backupFileName={backupFile?.name || ""}
-              backupStatus={backupStatus}
-              onExport={handleExportBackup}
-              onSelectFile={handleBackupFileSelect}
-              onRestore={handleRestoreBackup}
+              onBack={() => setSelectedPortfolioId(null)}
+              onEditPortfolio={() => setEditorState({ open: true, portfolio: selectedPortfolio })}
+              onRequestDeletePortfolio={() =>
+                setConfirmState({
+                  title: copy.confirm.deletePortfolioTitle,
+                  description: copy.confirm.deleteDetailPortfolioText,
+                  onConfirm: () => handleDeletePortfolio(selectedPortfolio.id),
+                })
+              }
+              onUploadImages={handleUploadImages}
+              onSetCover={handleSetCover}
+              onDeleteImage={(imageId) =>
+                setConfirmState({
+                  title: copy.confirm.deleteImageTitle,
+                  description: copy.confirm.deleteImageText,
+                  onConfirm: () => handleDeleteImage(imageId),
+                })
+              }
             />
-          ) : null}
+          )}
+        </React.Suspense>
+      ) : (
+        <>
+          <HeroCover portfolios={portfolios} profile={profile} copy={copy} locale={locale} />
+          <HeroSection
+            profile={profile}
+            isAdmin={isAdmin}
+            onEditProfile={() => {
+              if (isAdmin) {
+                setProfileEditorOpen(true);
+              }
+            }}
+            copy={copy}
+            locale={locale}
+            practiceRows={practiceRows}
+            manifestoItems={manifestoData}
+            luminaUrl={LUMINA_URL}
+          />
+          <PracticeSection copy={copy} locale={locale} />
+          <StorySection portfolios={portfolios} copy={copy} locale={locale} onOpenLab={onOpenLab} />
           <PortfolioMasonry
             portfolios={portfolios}
             isAdmin={isAdmin}
@@ -3486,17 +1855,30 @@ export default function App() {
               })
             }
           />
-          <BookingProjectsSection copy={copy} locale={locale} />
-          <Footer profile={profile} copy={copy} locale={locale} />
+          {isAdmin ? (
+            <AdminDataPanel
+              copy={copy}
+              locale={locale}
+              backupFileName={backupFile?.name || ""}
+              backupStatus={backupStatus}
+              onExport={handleExportBackup}
+              onSelectFile={handleBackupFileSelect}
+              onRestore={handleRestoreBackup}
+            />
+          ) : null}
+          <LuminaLab onSetView={(v, data) => {
+            setLuminaReportData(data);
+            setView(v);
+          }} />
+          <Footer profile={profile} copy={copy} locale={locale} luminaUrl={LUMINA_URL} />
         </>
       )}
-
-      <AdminToggle isAdmin={isAdmin} onToggle={() => setIsAdmin((value) => !value)} />
 
       {editorState.open ? (
         <PortfolioEditorModal
           portfolio={editorState.portfolio}
           copy={copy}
+          fallbackPortfolioContent={fallbackPortfolioContent}
           onClose={() => setEditorState({ open: false, portfolio: null })}
           onSave={handleSavePortfolio}
         />
@@ -3507,13 +1889,19 @@ export default function App() {
           profile={profile}
           copy={copy}
           locale={locale}
+          initialProfile={initialProfile}
           onClose={() => setProfileEditorOpen(false)}
           onSave={async (nextProfile) => {
+            if (!isAdmin) {
+              return;
+            }
             setProfile(toProfileShape(nextProfile));
             setProfileEditorOpen(false);
           }}
         />
       ) : null}
+
+      <AuthModal copy={copy} isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
       {confirmState ? (
         <ConfirmDialog

@@ -1,0 +1,21 @@
+# 核心依赖与锁定文件（体积巨大，绝对禁止扫描）
+node_modules/
+package-lock.json
+
+# Claude 本地运行缓存（必须屏蔽，防止递归读取历史导致 Token 爆炸）
+.claude/
+
+# 编译与打包输出目录（Vite 默认输出）
+dist/
+build/
+
+# 环境变量与隐私配置
+.env
+.env.local
+.env.*
+
+# Git 版本控制
+.git/
+
+# 静态资源原文件 (如果有体积较大的图片/视频，视情况添加)
+# public/images/
