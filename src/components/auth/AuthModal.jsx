@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { isSupabaseConfigured, supabase } from "../../lib/supabaseClient";
 import { IconClose, MagneticButton } from "../ui/siteControls";
 
 export function AuthModal({ copy, isOpen, onClose }) {
@@ -28,45 +27,47 @@ export function AuthModal({ copy, isOpen, onClose }) {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!isSupabaseConfigured() || !supabase) {
-      setErrorMessage(copy.login.authUnavailable);
-      return;
-    }
-
     setIsSubmitting(true);
     setStatusMessage("");
     setErrorMessage("");
 
     try {
-      if (mode === "signIn") {
-        const { error } = await supabase.auth.signInWithPassword({
+      // 1. 获取后端地址 (从环境变量读取，如果没有则使用硬编码兜底)
+      const apiUrl = import.meta.env.VITE_LUMINA_API_URL || 'https://lumina-server-production.up.railway.app';
+      
+      // 2. 向我们的 Railway 后端发送请求！
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // 注意：目前的后端逻辑主要是验证邮箱，密码验证可以后续在后端完善
+        body: JSON.stringify({ 
           email: email.trim(),
-          password,
-        });
+          password: password 
+        }), 
+      });
 
-        if (error) {
-          throw error;
-        }
+      const data = await response.json();
 
-        onClose();
-      } else {
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        if (data?.session) {
+      if (data.success) {
+        // 🔥 3. 最关键的一步：把后端发回来的包含 admin 权限的用户信息，强行写入前端缓存！
+        localStorage.setItem('lumina_user', JSON.stringify(data.user));
+        
+        setStatusMessage(mode === "signIn" ? "身份核验成功！" : "档案建立成功！");
+        
+        // 4. 延迟半秒关闭弹窗，并强行刷新页面，让导航栏重新读取你的 Admin 身份
+        setTimeout(() => {
           onClose();
-        } else {
-          setStatusMessage(copy.login.signUpSuccess);
-        }
+          window.location.reload();
+        }, 600);
+
+      } else {
+        throw new Error(data.message || copy.login.authUnavailable);
       }
     } catch (error) {
-      setErrorMessage(error?.message || copy.login.authUnavailable);
+      console.error("Lumina Engine 连接失败:", error);
+      setErrorMessage("无法连接到中枢大脑，请稍后再试");
     } finally {
       setIsSubmitting(false);
     }

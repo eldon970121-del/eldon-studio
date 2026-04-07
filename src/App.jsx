@@ -1282,11 +1282,25 @@ export default function App() {
     createBackupPayload,
     normalizeBackupPayload,
   } = usePersistence({ toPortfolioShape, toProfileShape });
+  
   const [portfolios, setPortfolios] = useState(initialPortfolios.map(toPortfolioShape));
   const [profile, setProfile] = useState(toProfileShape(initialProfile));
   const [locale, setLocale] = useState(() => getInitialLocale());
   const [loaded, setLoaded] = useState(false);
-  const [authUser, setAuthUser] = useState(null);
+  
+  // 🔥 改动点 1: 初始化时直接读取云端下发的本地缓存，抛弃 Supabase 的默认状态
+  const [authUser, setAuthUser] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem('lumina_user');
+        return saved ? JSON.parse(saved) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+  
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [isPastHero, setIsPastHero] = useState(false);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState(null);
@@ -1296,34 +1310,21 @@ export default function App() {
   const [backupStatus, setBackupStatus] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
   const [view, setView] = useState(() => {
-  // 1. 获取当前 URL 中的查询参数（例如 ?view=lab）
   const params = new URLSearchParams(window.location.search);
-  
-  // 2. 尝试获取名为 'view' 的参数值
   const urlView = params.get('view');
-  
-  // 3. 定义允许跳转的安全白名单，防止非法参数导致页面崩溃
   const validViews = ['home', 'lab', 'booking'];
-  
-  // 4. 如果参数在白名单内，则作为初始视图；否则默认返回 'home'
   return validViews.includes(urlView) ? urlView : 'home';
 });
   const [luminaReportData, setLuminaReportData] = useState(null);
   const [clientSlug, setClientSlug] = useState("");
   const [proofSlug, setProofSlug] = useState(null);
 
-
-
   useEffect(() => {
-    // 强制加载日志，确认代码运行
     console.log('🔥 App.jsx URL Parser Running');
-
     const params = new URLSearchParams(window.location.search);
     const adminParam = params.get('admin');
     const slug = params.get('slug');
-
     console.log('🔍 Extracted Slug from Params:', slug);
-
     if (adminParam === 'true') {
       setView('admin');
     } else if (slug) {
@@ -1333,41 +1334,20 @@ export default function App() {
   }, []);
 
   const copy = siteCopy[locale];
-  const hasAuthConfig = isSupabaseConfigured();
   const userEmail = authUser?.email?.trim() || "";
-  const isAdmin = Boolean(userEmail && ADMIN_EMAIL && userEmail.toLowerCase() === ADMIN_EMAIL);
+  
+  // 🔥 改动点 2: 优先使用云端数据库下发的 role 字段来判断最高权限，再保留环境变量作为兜底
+  const isAdmin = Boolean(
+    authUser?.role === 'admin' || 
+    (userEmail && ADMIN_EMAIL && userEmail.toLowerCase() === ADMIN_EMAIL)
+  );
+
   const selectedPortfolio = useMemo(
     () => portfolios.find((item) => item.id === selectedPortfolioId) || null,
     [portfolios, selectedPortfolioId],
   );
 
-  useEffect(() => {
-    if (!hasAuthConfig || !supabase) {
-      setAuthUser(null);
-      return undefined;
-    }
-
-    let active = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) {
-        return;
-      }
-
-      setAuthUser(data.session?.user ?? null);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setAuthUser(nextSession?.user ?? null);
-    });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
-  }, [hasAuthConfig]);
+  // 🔥 改动点 3: 彻底删除了监听 supabase.auth 状态变化的 useEffect，完全由我们的 Lumina Engine 接管
 
   useEffect(() => {
     let mounted = true;
@@ -1488,13 +1468,22 @@ export default function App() {
     setConfirmState(null);
   }, [isAdmin]);
 
+  // 🔥 改动点 4: 重构登出逻辑，撕毁本地凭证
   async function handleSignOut() {
-    if (!supabase) {
-      return;
-    }
-
-    await supabase.auth.signOut();
+    // 彻底清除前端身份记录
+    localStorage.removeItem('lumina_user');
+    setAuthUser(null);
     setAuthModalOpen(false);
+    
+    // 清除可能存在的第三方遗留存储状态，但不依赖它
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch(e) {}
+    }
+    
+    // 强制刷新页面重置所有 UI
+    window.location.reload();
   }
 
   async function handleSavePortfolio({ id, title, description, coverImageId, images, narrative }) {
