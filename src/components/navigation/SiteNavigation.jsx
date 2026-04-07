@@ -104,7 +104,14 @@ export function ImmersiveNavbar({
         className={`mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-[1.8rem] border px-4 py-3 transition duration-500 sm:px-6 ${shellClass}`}
         style={!isSolid ? { textShadow: "0 1px 14px rgba(0,0,0,0.26)" } : undefined}
       >
-        <a href="#top" className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            onGoHome();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className="flex min-w-0 items-center gap-3 transition-opacity duration-300 hover:opacity-70"
+        >
           <span
             className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-[11px] font-semibold uppercase tracking-[0.32em] ${
               isSolid
@@ -122,7 +129,7 @@ export function ImmersiveNavbar({
               {copy.hero.cinematicDirection}
             </span>
           </span>
-        </a>
+        </button>
 
         <nav className="hidden items-center gap-6 md:flex">
           <a

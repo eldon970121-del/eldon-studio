@@ -16,7 +16,6 @@ import { StorySection } from "./components/sections/StorySection";
 import { PortfolioMasonry } from "./components/sections/PortfolioMasonry";
 import { BookingProjectsSection } from "./components/sections/BookingProjectsSection";
 import { LuminaLab } from "./components/sections/LuminaLab";
-import { AdminDataPanel } from "./components/admin/AdminDataPanel";
 import { Footer } from "./components/layout/Footer";
 import { PortfolioEditorModal } from "./components/modals/PortfolioEditorModal";
 import { ProfileEditorModal } from "./components/modals/ProfileEditorModal";
@@ -616,6 +615,12 @@ const siteCopy = {
       open: "Open",
       imagesSuffix: "images",
       noCover: "No cover image",
+      filterLabels: {
+        ALL: "All",
+        STUDIO: "Studio",
+        EXPLORATION: "Exploration",
+        ARCHIVE: "Humanities",
+      },
     },
     detail: {
       back: "Back to Archive",
@@ -1031,6 +1036,12 @@ const siteCopy = {
       open: "打开",
       imagesSuffix: "张图片",
       noCover: "暂无封面图",
+      filterLabels: {
+        ALL: "全部",
+        STUDIO: "影棚",
+        EXPLORATION: "外景",
+        ARCHIVE: "人文",
+      },
     },
     detail: {
       back: "返回归档",
@@ -1213,7 +1224,7 @@ function toPortfolioShape(portfolio) {
   const normalizedImages = images
     .map((image, index) => {
       const fallbackUrl = initialSeed?.images?.[index]?.url || null;
-      const nextUrl = isEphemeralImageUrl(image?.url) ? fallbackUrl : image?.url;
+      const nextUrl = isEphemeralImageUrl(image?.url) ? fallbackUrl : (image?.url ?? image?.publicUrl ?? null);
 
       if (!nextUrl) {
         return null;
@@ -1284,10 +1295,24 @@ export default function App() {
   const [backupFile, setBackupFile] = useState(null);
   const [backupStatus, setBackupStatus] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
-  const [view, setView] = useState("home");
+  const [view, setView] = useState(() => {
+  // 1. 获取当前 URL 中的查询参数（例如 ?view=lab）
+  const params = new URLSearchParams(window.location.search);
+  
+  // 2. 尝试获取名为 'view' 的参数值
+  const urlView = params.get('view');
+  
+  // 3. 定义允许跳转的安全白名单，防止非法参数导致页面崩溃
+  const validViews = ['home', 'lab', 'booking'];
+  
+  // 4. 如果参数在白名单内，则作为初始视图；否则默认返回 'home'
+  return validViews.includes(urlView) ? urlView : 'home';
+});
   const [luminaReportData, setLuminaReportData] = useState(null);
   const [clientSlug, setClientSlug] = useState("");
   const [proofSlug, setProofSlug] = useState(null);
+
+
 
   useEffect(() => {
     // 强制加载日志，确认代码运行
@@ -1472,7 +1497,7 @@ export default function App() {
     setAuthModalOpen(false);
   }
 
-  async function handleSavePortfolio({ id, title, description, coverImageId, images }) {
+  async function handleSavePortfolio({ id, title, description, coverImageId, images, narrative }) {
     if (!isAdmin) {
       return;
     }
@@ -1522,6 +1547,7 @@ export default function App() {
 
       const nextPortfolio = toPortfolioShape({
         id: nextId,
+        narrative,
         title: toLocalizedField(title, fallbackPortfolioContent.title),
         description: toLocalizedField(description, fallbackPortfolioContent.description),
         images: nextImages,
@@ -1781,6 +1807,7 @@ export default function App() {
         <React.Suspense fallback={<div className="h-screen bg-black" />}>
           <LuminaReport
             imageData={luminaReportData?.imageData}
+            locale={locale}
             onBook={() => setView("booking")}
             onGoHome={() => setView("home")}
           />
@@ -1792,7 +1819,17 @@ export default function App() {
           ) : view === "client" ? (
             <ClientPortalPage slug={clientSlug} onGoHome={() => setView("home")} />
           ) : view === "admin" ? (
-            <AdminDashboardPage isAdmin={isAdmin} onGoHome={() => setView("home")} />
+            <AdminDashboardPage
+              isAdmin={isAdmin}
+              onGoHome={() => setView("home")}
+              copy={copy}
+              locale={locale}
+              backupFileName={backupFile?.name || ""}
+              backupStatus={backupStatus}
+              onExport={handleExportBackup}
+              onSelectFile={handleBackupFileSelect}
+              onRestore={handleRestoreBackup}
+            />
           ) : (
             <DetailView
               portfolio={selectedPortfolio}
@@ -1855,21 +1892,13 @@ export default function App() {
               })
             }
           />
-          {isAdmin ? (
-            <AdminDataPanel
-              copy={copy}
-              locale={locale}
-              backupFileName={backupFile?.name || ""}
-              backupStatus={backupStatus}
-              onExport={handleExportBackup}
-              onSelectFile={handleBackupFileSelect}
-              onRestore={handleRestoreBackup}
-            />
-          ) : null}
-          <LuminaLab onSetView={(v, data) => {
-            setLuminaReportData(data);
-            setView(v);
-          }} />
+          <LuminaLab
+            locale={locale}
+            onSetView={(v, data) => {
+              setLuminaReportData(data);
+              setView(v);
+            }}
+          />
           <Footer profile={profile} copy={copy} locale={locale} luminaUrl={LUMINA_URL} />
         </>
       )}

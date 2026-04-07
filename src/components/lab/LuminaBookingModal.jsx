@@ -2,24 +2,79 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabaseClient';
 
-const WEAKNESS_MAP = {
-  'Lighting':            '光影深度',
-  'Composition':         '视觉构图',
-  'Color Narrative':     '色彩叙事',
-  'Emotional Depth':     '情绪张力',
-  'Technical Precision': '画质细节',
+// English id → localised display label
+const WEAKNESS_LABELS = {
+  en: {
+    'Lighting':            'Lighting',
+    'Composition':         'Composition',
+    'Color Narrative':     'Color Narrative',
+    'Emotional Depth':     'Emotional Depth',
+    'Technical Precision': 'Technical Precision',
+  },
+  zh: {
+    'Lighting':            '光影深度',
+    'Composition':         '视觉构图',
+    'Color Narrative':     '色彩叙事',
+    'Emotional Depth':     '情绪张力',
+    'Technical Precision': '画质细节',
+  },
 };
 
-export function LuminaBookingModal({ weaknessProp, onClose }) {
+const T = {
+  en: {
+    navLabel:       "Lumina Lab / Session Request",
+    headline:       "Unlock Your Cinematic Potential",
+    pitch:          (label) =>
+      `One professional touch to your ${label} is all that stands between you and a perfect cinematic portrait. Eldon Studio has prepared an exclusive visual upgrade for you.`,
+    labelName:      "Your Name",
+    labelContact:   "Contact (WeChat or Email)",
+    labelVision:    "Your Vision",
+    optionalHint:   "(optional)",
+    placeholderName:    "Your name",
+    placeholderContact: "WeChat ID or email",
+    placeholderVision:  "Describe your vision or shoot concept...",
+    submitIdle:     "Request Concept Call",
+    submitLoading:  "Sending...",
+    cancelBtn:      "Cancel",
+    successMsg:     "Transmission received.",
+    successSub:     "Eldon Studio will contact you within 24 hours.",
+    returnBtn:      "← Return",
+    errorMsg:       "Submission failed. Please try again later.",
+  },
+  zh: {
+    navLabel:       "Lumina 实验室 / 创作咨询申请",
+    headline:       "释放您的电影级影像潜能",
+    pitch:          (label) =>
+      `距离一张完美的电影级大片，或许只差在【${label}】上的专业雕琢。Eldon Studio 已为您准备好专属的视觉升级方案。`,
+    labelName:      "您的称呼",
+    labelContact:   "联系方式（微信或邮箱）",
+    labelVision:    "拍摄构想",
+    optionalHint:   "（选填）",
+    placeholderName:    "请输入您的姓名",
+    placeholderContact: "微信号或邮箱地址",
+    placeholderVision:  "请描述您的拍摄构想或创作方向...",
+    submitIdle:     "申请创作咨询",
+    submitLoading:  "提交中...",
+    cancelBtn:      "取消",
+    successMsg:     "信息已收到。",
+    successSub:     "Eldon Studio 将在 24 小时内与您联系。",
+    returnBtn:      "← 返回",
+    errorMsg:       "提交失败，请稍后重试。",
+  },
+};
+
+export function LuminaBookingModal({ weaknessProp, locale = 'en', onClose }) {
+  const t = T[locale] ?? T.en;
+  const weaknessLabels = WEAKNESS_LABELS[locale] ?? WEAKNESS_LABELS.en;
+  const weaknessLabel  = weaknessLabels[weaknessProp] || (locale === 'zh' ? '视觉表达' : 'Visual Expression');
+  const pitch = t.pitch(weaknessLabel);
+
   const [name,    setName]    = useState('');
   const [contact, setContact] = useState('');
   const [vision,  setVision]  = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error,   setError]   = useState(null);
-
-  const weaknessLabel = WEAKNESS_MAP[weaknessProp] || '视觉表达';
-  const pitch = `距离一张完美的电影级大片，或许只差在【${weaknessLabel}】上的专业雕琢。Eldon Studio 已为您准备好专属的视觉升级方案。`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,15 +84,15 @@ export function LuminaBookingModal({ weaknessProp, onClose }) {
       const { error: sbError } = await supabase
         .from('leads')
         .insert({
-          client_name:      name,
-          client_email:     contact,
-          lumina_weakness:  weaknessProp,
-          message:          vision || null,
+          client_name:     name,
+          client_email:    contact,
+          lumina_weakness: weaknessProp,
+          message:         vision || null,
         });
       if (sbError) throw sbError;
       setSuccess(true);
-    } catch (err) {
-      setError('提交失败，请稍后重试。');
+    } catch {
+      setError(t.errorMsg);
     } finally {
       setLoading(false);
     }
@@ -62,9 +117,8 @@ export function LuminaBookingModal({ weaknessProp, onClose }) {
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-lg border border-white/10 bg-[#050505] px-10 py-12"
         >
-          {/* Header label */}
           <p className="text-[#00e5ff] text-[10px] tracking-[0.3em] uppercase font-mono mb-6">
-            Lumina Lab / Session Request
+            {t.navLabel}
           </p>
 
           <AnimatePresence mode="wait">
@@ -75,34 +129,36 @@ export function LuminaBookingModal({ weaknessProp, onClose }) {
                 animate={{ opacity: 1 }}
                 className="text-center py-8"
               >
-                <p className="text-white text-base font-light leading-relaxed mb-8">
-                  Transmission received.<br />
-                  <span className="text-gray-400">Eldon Studio 将在 24 小时内与您联系。</span>
+                <p className="text-white text-base font-light leading-relaxed mb-2">
+                  {t.successMsg}
                 </p>
+                <p className="text-gray-400 text-sm mb-8">{t.successSub}</p>
                 <button
                   onClick={onClose}
                   className="text-gray-600 text-xs tracking-[0.2em] uppercase hover:text-white transition-colors"
                 >
-                  ← Return
+                  {t.returnBtn}
                 </button>
               </motion.div>
             ) : (
               <motion.div key="form" initial={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                {/* Headline */}
-                <h2 className="font-serif text-white text-3xl tracking-[0.15em] uppercase font-light mb-4">
-                  Unlock Your Cinematic Potential
+                <h2
+                  className={`font-serif text-white font-light mb-4 ${
+                    locale === 'zh'
+                      ? 'text-2xl tracking-[0.06em]'
+                      : 'text-3xl tracking-[0.15em] uppercase'
+                  }`}
+                  style={locale === 'zh' ? { fontFamily: "'Noto Serif SC', 'Noto Serif', serif" } : undefined}
+                >
+                  {t.headline}
                 </h2>
 
-                {/* Dynamic pitch */}
-                <p className="text-gray-500 text-sm leading-relaxed mb-10">
-                  {pitch}
-                </p>
+                <p className="text-gray-500 text-sm leading-relaxed mb-10">{pitch}</p>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
-                  {/* Name */}
                   <div>
                     <label className="block text-[9px] tracking-[0.25em] uppercase text-gray-700 font-mono mb-2">
-                      您的称呼 / Name
+                      {t.labelName}
                     </label>
                     <input
                       type="text"
@@ -110,14 +166,13 @@ export function LuminaBookingModal({ weaknessProp, onClose }) {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="w-full bg-transparent border-b border-white/20 text-white text-sm py-2 outline-none focus:border-white/50 transition-colors placeholder-gray-800"
-                      placeholder="Your name"
+                      placeholder={t.placeholderName}
                     />
                   </div>
 
-                  {/* Contact */}
                   <div>
                     <label className="block text-[9px] tracking-[0.25em] uppercase text-gray-700 font-mono mb-2">
-                      联系方式 (微信或邮箱) / Contact
+                      {t.labelContact}
                     </label>
                     <input
                       type="text"
@@ -125,21 +180,21 @@ export function LuminaBookingModal({ weaknessProp, onClose }) {
                       value={contact}
                       onChange={(e) => setContact(e.target.value)}
                       className="w-full bg-transparent border-b border-white/20 text-white text-sm py-2 outline-none focus:border-white/50 transition-colors placeholder-gray-800"
-                      placeholder="WeChat ID or email"
+                      placeholder={t.placeholderContact}
                     />
                   </div>
 
-                  {/* Vision */}
                   <div>
                     <label className="block text-[9px] tracking-[0.25em] uppercase text-gray-700 font-mono mb-2">
-                      拍摄构想 / Your Vision <span className="text-gray-800">(optional)</span>
+                      {t.labelVision}{' '}
+                      <span className="text-gray-800">{t.optionalHint}</span>
                     </label>
                     <textarea
                       rows={3}
                       value={vision}
                       onChange={(e) => setVision(e.target.value)}
                       className="w-full bg-transparent border-b border-white/20 text-white text-sm py-2 outline-none focus:border-white/50 transition-colors resize-none placeholder-gray-800"
-                      placeholder="Describe your vision or shoot concept..."
+                      placeholder={t.placeholderVision}
                     />
                   </div>
 
@@ -153,14 +208,14 @@ export function LuminaBookingModal({ weaknessProp, onClose }) {
                       onClick={onClose}
                       className="text-gray-700 text-[10px] tracking-[0.2em] uppercase hover:text-gray-400 transition-colors"
                     >
-                      Cancel
+                      {t.cancelBtn}
                     </button>
                     <button
                       type="submit"
                       disabled={loading}
                       className="border border-white/20 text-white text-xs tracking-[0.3em] uppercase px-8 py-3 hover:border-white/60 hover:bg-white/5 transition-all duration-300 disabled:opacity-40"
                     >
-                      {loading ? 'Sending...' : 'Request Concept Call'}
+                      {loading ? t.submitLoading : t.submitIdle}
                     </button>
                   </div>
                 </form>

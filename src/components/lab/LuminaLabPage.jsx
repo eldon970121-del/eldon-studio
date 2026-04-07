@@ -17,80 +17,84 @@ function getLabContent(locale, copy) {
 
   return locale === "zh"
     ? {
-        uploadHeading: "Refining Aesthetics",
+        uploadHeading: "影像审美精炼",
         uploadIntro:
           "上传一张画面，让 Lumina 从色彩、光影和情绪张力中提炼出更成熟的审美读数与发布策略。",
         dropTitle: "拖放一张影像，开始读取视觉气候",
         dropHint: "支持 JPG、PNG、WEBP。建议使用肖像、编辑摄影或电影感画面。",
         analyzingTitle: "正在扫描色彩压力与光影结构",
         analyzingHint: "Lumina 正在建立情绪共振、成熟度与平台分发建议。",
-        selectFile: "选择图片",
-        replaceFile: "更换图片",
-        protocolLabel: "Lab Protocol",
+        selectFile: "选择影像",
+        replaceFile: "更换影像",
+        dropCta: "拖放画面或点击选择",
+        dropRelease: "松手导入画面",
+        seriesDropRelease: "松手以添加",
+        protocolLabel: "分析协议",
         protocolSteps: [
           {
             id: "01",
-            title: "Frame Intake",
+            title: "画面导入",
             text: "接收单张画面，保留其原始色温、对比与空间压强。",
           },
           {
             id: "02",
-            title: "Signal Reading",
+            title: "信号解析",
             text: "拆解情绪重力、光比结构与主体聚焦方式。",
           },
           {
             id: "03",
-            title: "Strategy Output",
+            title: "策略输出",
             text: "输出专业分析与适配社交平台的文案建议。",
           },
         ],
         featureCards: [
           {
-            title: "Emotional Resonance",
+            title: "情绪共振",
             text: "把忧郁、神秘、力量与温度拆成可读的分值与趋势。",
           },
           {
-            title: "Light Deconstruction",
+            title: "光影解构",
             text: "识别影像是如何依靠对比、落光与空间收束建立张力。",
           },
           {
-            title: "Publishing Strategy",
+            title: "发布策略",
             text: "把审美判断转成更适合小红书与抖音的表达方式。",
           },
         ],
-        dashboardHeading: "Aesthetic Lab / Lumina Analysis",
+        dashboardHeading: "审美实验室 / Lumina 分析报告",
         newAnalysis: "新建分析",
-        imagePanelLabel: "Current Frame",
+        imagePanelLabel: "当前画面",
         imageAlt: "已上传的审美分析图片",
-        scoreLabel: "Aesthetic Maturity",
+        scoreLabel: "审美成熟度",
         scoreText: "综合色彩压强、神秘感、粗粝力量与亲密温度后的成熟度读数。",
-        resonanceLabel: "Emotional Resonance",
-        professionalTab: "Professional Analysis",
-        socialTab: "Social Strategy",
+        resonanceLabel: "情绪共振",
+        professionalTab: "专业分析",
+        socialTab: "社媒策略",
+        resultViewLabel: "分析结果",
         professionalPanels: {
-          color: "Color Analysis",
-          lighting: "Lighting Deconstruction",
-          advice: "Actionable Advice",
+          color: "色彩分析",
+          lighting: "光影解构",
+          advice: "优化建议",
         },
         socialPanels: {
-          copy: "Social Narrative",
-          titles: "Recommended Titles",
-          caption: "Recommended Caption",
+          copy: "社媒文案",
+          titles: "推荐标题",
+          caption: "发布说明",
         },
         fieldLabels: {
-          dominantTone: "Dominant Tone",
-          visualWeight: "Visual Weight",
-          colorPsychology: "Color Psychology",
-          lightingType: "Lighting Type",
-          lightRatio: "Light Ratio",
-          spatialDepth: "Spatial Depth",
-          fileName: "File",
+          dominantTone: "主色调",
+          visualWeight: "视觉重量分布",
+          colorPsychology: "色彩心理",
+          lightingType: "布光类型",
+          lightRatio: "光比评估",
+          spatialDepth: "空间纵深",
+          fileName: "文件",
         },
         copyAction: "复制",
         copied: "已复制",
         modeToggleSingle: "单张分析",
         modeToggleSeries: "组图分析",
-        seriesUploadTitle: "Series Analysis",
+        seriesUploadTitle: "组图系列分析",
         seriesUploadIntro: "一次上传 2–12 张图片，Lumina 将逐帧分析，输出整体风格一致性评分与系列平均情绪共振。",
         seriesDropHint: "拖放图片或点击添加，最多 12 张",
         seriesAddMore: "继续添加",
@@ -99,15 +103,15 @@ function getLabContent(locale, copy) {
         seriesMaxWarning: "最多支持 12 张图片",
         seriesAnalyzingTitle: "正在逐帧分析组图",
         seriesAnalyzingHint: (done, total) => `已完成 ${done} / ${total} 帧`,
-        seriesDashboardHeading: "Series Analysis",
+        seriesDashboardHeading: "组图分析报告",
         seriesCoherenceLabel: "风格一致性",
         seriesCoherenceDesc: "基于系列所有画面成熟度分数的分布计算，分值越高代表系列整体风格越统一。",
         seriesAvgLabel: "系列平均情绪共振",
         seriesFilmstripLabel: "系列帧览",
-        seriesFrameLabel: "Frame",
-        seriesSelectedLabel: "当前分析帧",
+        seriesFrameLabel: "画面",
+        seriesSelectedLabel: "当前分析画面",
         seriesNewAnalysis: "重新上传",
-        seriesFrameCount: (n) => `${n} 张图片`,
+        seriesFrameCount: (n) => `${n} 张`,
         analysisError,
       }
     : {
@@ -120,6 +124,9 @@ function getLabContent(locale, copy) {
         analyzingHint: "Lumina is building resonance scores, maturity, and platform-ready guidance.",
         selectFile: "Select Image",
         replaceFile: "Replace Image",
+        dropCta: "Drop a frame or click to select",
+        dropRelease: "Release to upload",
+        seriesDropRelease: "Release to add",
         protocolLabel: "Lab Protocol",
         protocolSteps: [
           {
@@ -161,6 +168,7 @@ function getLabContent(locale, copy) {
         resonanceLabel: "Emotional Resonance",
         professionalTab: "Professional Analysis",
         socialTab: "Social Strategy",
+        resultViewLabel: "Result View",
         professionalPanels: {
           color: "Color Analysis",
           lighting: "Lighting Deconstruction",
@@ -495,7 +503,7 @@ export function LuminaLabPage({ copy, locale }) {
   const seriesOverviewCopy = locale === "zh"
     ? {
         panelLabel: "系列总览",
-        directionLabel: "Series Direction",
+        directionLabel: "系列创作方向",
         distributionLabel: "成熟度分布",
         titlesLabel: "推荐标题",
         captionLabel: "系列发布文案",
@@ -634,7 +642,7 @@ export function LuminaLabPage({ copy, locale }) {
             </div>
 
             <div className="glass-panel glass-edge rounded-[2rem] p-4 sm:p-5 xl:col-span-8">
-              <div
+              <motion.div
                 {...getRootProps({
                   onClick: () => {
                     if (!isAnalyzing) {
@@ -642,9 +650,32 @@ export function LuminaLabPage({ copy, locale }) {
                     }
                   },
                 })}
-                className={`relative min-h-[28rem] overflow-hidden rounded-[1.8rem] border border-white/10 bg-[#111111] p-6 transition duration-300 sm:p-8 ${
-                  isDragActive ? "border-[#48ddbc]" : "border-white/10"
-                } ${isAnalyzing ? "cursor-default" : "cursor-pointer"}`}
+                animate={isDragActive || isAnalyzing ? "active" : "idle"}
+                variants={{
+                  idle: {
+                    boxShadow: [
+                      "0 0 0px rgba(79,209,197,0)",
+                      "0 0 15px rgba(79,209,197,0.15)",
+                      "0 0 0px rgba(79,209,197,0)",
+                    ],
+                    borderColor: ["rgba(255,255,255,0.10)", "rgba(79,209,197,0.30)", "rgba(255,255,255,0.10)"],
+                    transition: {
+                      duration: 3.6,
+                      ease: "easeInOut",
+                      repeat: Infinity,
+                      repeatType: "loop",
+                    },
+                  },
+                  active: {
+                    boxShadow: "0 0 28px rgba(79,209,197,0.35)",
+                    borderColor: "rgba(79,209,197,0.80)",
+                    transition: { duration: 0.2, ease: "easeOut" },
+                  },
+                }}
+                whileHover={!isAnalyzing ? "active" : undefined}
+                className={`relative min-h-[28rem] overflow-hidden rounded-[1.8rem] border bg-[#111111] p-6 sm:p-8 ${
+                  isAnalyzing ? "cursor-default" : "cursor-pointer"
+                }`}
               >
                 {previewUrl ? (
                   <img
@@ -708,13 +739,7 @@ export function LuminaLabPage({ copy, locale }) {
                         {isAnalyzing ? content.analyzingHint : content.dropHint}
                       </p>
                       <p className="font-lab-label text-[11px] uppercase tracking-[0.34em] text-[#48ddbc]">
-                        {isDragActive && !isAnalyzing
-                          ? locale === "zh"
-                            ? "释放以上传"
-                            : "Release to upload"
-                          : locale === "zh"
-                            ? "拖放图片或点击选择"
-                            : "Drag and drop, or click to select"}
+                        {isDragActive && !isAnalyzing ? content.dropRelease : content.dropCta}
                       </p>
                     </div>
 
@@ -732,7 +757,7 @@ export function LuminaLabPage({ copy, locale }) {
                     ) : null}
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
               {error ? (
                 <p className="mt-4 rounded-[1.2rem] border border-[rgba(255,108,108,0.3)] bg-[rgba(110,23,23,0.22)] px-4 py-4 font-lab-body text-sm leading-7 text-[#e7e5e5]">
@@ -802,7 +827,7 @@ export function LuminaLabPage({ copy, locale }) {
                   {content.imagePanelLabel}
                 </p>
                 <p className="font-lab-label text-[11px] uppercase tracking-[0.34em] text-[#48ddbc]">
-                  Result View
+                  {content.resultViewLabel}
                 </p>
               </div>
               <div className="min-h-0 flex-1 bg-[#0e0e0e] p-4 sm:p-6">
@@ -1120,11 +1145,7 @@ export function LuminaLabPage({ copy, locale }) {
               </div>
               <div>
                 <p className="font-lab-label text-[11px] uppercase tracking-[0.34em] text-[#48ddbc]">
-                  {isSeriesDragActive
-                    ? locale === "zh"
-                      ? "释放以添加"
-                      : "Release to add"
-                    : content.seriesDropHint}
+                  {isSeriesDragActive ? content.seriesDropRelease : content.seriesDropHint}
                 </p>
                 {seriesItems.length > 0 && (
                   <p className="mt-2 font-lab-body text-sm text-[#757575]">

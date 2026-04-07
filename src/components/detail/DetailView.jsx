@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { useDropzone } from "react-dropzone";
 import { processPortfolioImageFile } from "../../utils/processPortfolioImage";
 import { uploadImageToCloud } from "../../services/cloudStorage";
 import { getLocalizedText, resolveUploadErrorMessage } from "../../utils/siteHelpers";
 import { IconArrow, IconClose, IconEdit, IconTrash, IconUpload } from "../ui/siteControls";
+import { UniversalUploader } from "../UniversalUploader";
 
 const detailMetaCopy = {
   en: {
@@ -65,44 +65,41 @@ function StagingUploadArea({ onConfirmUpload, copy }) {
   const [errorMessage, setErrorMessage] = useState("");
   const stagedFilesRef = useRef([]);
 
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    accept: { "image/*": [] },
-    multiple: true,
-    noClick: true,
-    onDrop: (acceptedFiles) => {
-      if (acceptedFiles.length === 0) {
-        return;
-      }
-
-      const nextFiles = acceptedFiles.map((file) => ({
-        id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
-        file,
-        previewUrl: URL.createObjectURL(file),
-      }));
-
-      setStagedFiles((current) => {
-        const merged = [...current, ...nextFiles];
-        stagedFilesRef.current = merged;
-        return merged;
-      });
-      setErrorMessage("");
-    },
-  });
-
   useEffect(() => {
     return () => {
       stagedFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     };
   }, []);
 
-  async function handleConfirmUpload() {
-    if (stagedFiles.length === 0) {
-      return;
-    }
+  function handleAdd(acceptedFiles) {
+    if (acceptedFiles.length === 0) return;
+    const nextFiles = acceptedFiles.map((file) => ({
+      id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    setStagedFiles((current) => {
+      const merged = [...current, ...nextFiles];
+      stagedFilesRef.current = merged;
+      return merged;
+    });
+    setErrorMessage("");
+  }
 
+  function handleRemove(fileId) {
+    const target = stagedFilesRef.current.find((item) => item.id === fileId);
+    if (target) URL.revokeObjectURL(target.previewUrl);
+    setStagedFiles((current) => {
+      const next = current.filter((item) => item.id !== fileId);
+      stagedFilesRef.current = next;
+      return next;
+    });
+  }
+
+  async function handleConfirmUpload() {
+    if (stagedFiles.length === 0) return;
     setIsUploading(true);
     setErrorMessage("");
-
     try {
       const uploadedImages = await Promise.all(
         stagedFiles.map(async (item, index) => ({
@@ -111,7 +108,6 @@ function StagingUploadArea({ onConfirmUpload, copy }) {
           isCover: false,
         })),
       );
-
       stagedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
       stagedFilesRef.current = [];
       await onConfirmUpload(uploadedImages);
@@ -147,48 +143,26 @@ function StagingUploadArea({ onConfirmUpload, copy }) {
         </span>
       </div>
 
-      <div
-        {...getRootProps()}
-        className={`rounded-[1.6rem] border border-dashed px-5 py-8 text-center transition ${
-          isDragActive
-            ? "border-[color:var(--site-accent)] bg-[color:var(--site-glow)]"
-            : "border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)]/52 hover:border-[color:var(--site-border-strong)]"
-        }`}
-      >
-        <input {...getInputProps()} />
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:var(--site-border)] bg-[color:var(--site-panel-soft)] text-[color:var(--site-accent)]">
-          <IconUpload />
-        </div>
-        <p className="mt-4 text-sm font-medium text-[color:var(--site-text)]">{copy.upload.hint}</p>
-        <button
-          type="button"
-          onClick={open}
-          className="micro-button mt-5 rounded-full border border-[color:var(--site-border)] bg-[color:var(--site-bg-deep)] px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-[color:var(--site-text)]"
-        >
-          {copy.upload.browse}
-        </button>
-      </div>
+      <UniversalUploader
+        files={stagedFiles}
+        onAdd={handleAdd}
+        onRemove={handleRemove}
+        copy={{
+          hint: copy.upload.hint,
+          browse: copy.upload.browse,
+          removeLabel: copy.upload.browse,
+          coverLabel: "",
+        }}
+      />
 
       {stagedFiles.length > 0 ? (
         <div className="mt-5">
-          <div className="grid grid-cols-3 gap-3">
-            {stagedFiles.map((item) => (
-              <div
-                key={item.id}
-                className="overflow-hidden rounded-[1.2rem] border border-[color:var(--site-border-soft)] bg-[color:var(--site-bg-deep)]/72"
-              >
-                <img src={item.previewUrl} alt={item.file.name} className="aspect-square w-full object-cover" />
-              </div>
-            ))}
-          </div>
-
           {errorMessage ? (
-            <div className="mt-4 rounded-[1.1rem] border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+            <div className="mb-4 rounded-[1.1rem] border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-100">
               {errorMessage}
             </div>
           ) : null}
-
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
               onClick={handleClear}

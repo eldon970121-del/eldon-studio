@@ -176,7 +176,7 @@ export const PortfolioMasonry = memo(function PortfolioMasonry({
                   : "text-white/30 hover:text-white/60"
               }`}
             >
-              {f === "ALL" ? "All" : f.charAt(0) + f.slice(1).toLowerCase()}
+              {copy.gallery.filterLabels?.[f] ?? (f === "ALL" ? "All" : f.charAt(0) + f.slice(1).toLowerCase())}
             </button>
           ))}
         </div>
