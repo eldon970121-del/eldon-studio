@@ -425,9 +425,25 @@ function TypographyPanel({ typography }) {
   );
 }
 
+const SOCIAL_CONTENT = {
+  xhs: {
+    title: '旷野回响｜硬光雕刻的生命力',
+    copy: '利用大面积留白压暗情绪。正文强调呼吸感与剥离感，引导用户关注画面中的风与光照。\n\nHashtag: #电影感摄影 #情绪肖像 #光影叙事',
+    bgm: 'Hans Zimmer 风格低频氛围乐 / 空旷风声白噪音',
+  },
+  douyin: {
+    title: '一帧光影，一段无声叙事',
+    copy: '开场 0.5s 静帧留白，配合低频音效建立情绪张力。文案简短有力，强调"反差"与"克制"。\n\nHashtag: #电影感 #摄影师 #光影美学',
+    bgm: '极简钢琴 + 低沉弦乐 / 环境白噪音',
+  },
+};
+
 function MacroPanel({ images }) {
   const score = (8.2 + images.length * 0.1).toFixed(1);
   const moods = ['压抑', '力量感', '克制'];
+  const [socialTab, setSocialTab] = useState('xhs');
+  const social = SOCIAL_CONTENT[socialTab];
+
   return (
     <div className="space-y-6">
       <div>
@@ -450,17 +466,50 @@ function MacroPanel({ images }) {
           <p className="text-[8px] uppercase tracking-[0.3em] text-white/20">视觉一致性</p>
           <p className="text-[10px] font-mono" style={{ color: GOLD }}>{score} / 10</p>
         </div>
-        <div className="h-px bg-white/8 rounded-full overflow-hidden">
+        <div className="h-px overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
           <motion.div initial={{ width:0 }} animate={{ width:`${parseFloat(score)*10}%` }}
             transition={{ duration:1.4, ease:'easeOut' }} className="h-full"
             style={{ background:`linear-gradient(90deg, #c9a84c, #f5e17a)` }} />
         </div>
       </div>
-      <div className="border-l-[1px] pl-3" style={{ borderColor:'rgba(201,168,76,0.25)' }}>
-        <p className="text-[8px] uppercase tracking-[0.25em] text-white/20 mb-2">社交发布策略</p>
-        <p style={{ fontSize:'10px', color:'#a0a0a0', lineHeight:'1.8', letterSpacing:'0.02em' }}>
-          建议采用高反差封面作为首图，文案强化空间留白的叙事张力，序列发布间隔 24h 以维持视觉悬念。
-        </p>
+
+      {/* Social strategy with tab switcher */}
+      <div className="border-l-[1px] pl-3" style={{ borderColor:'rgba(201,168,76,0.2)' }}>
+        <p className="text-[8px] uppercase tracking-[0.25em] text-white/20 mb-2.5">社交发布策略</p>
+
+        {/* Tab bar */}
+        <div className="flex gap-3 mb-4">
+          {[{ id:'xhs', label:'小红书' }, { id:'douyin', label:'抖音' }].map(t => (
+            <button key={t.id} onClick={() => setSocialTab(t.id)}
+              className="text-[9px] tracking-[0.15em] transition-colors duration-200 pb-0.5"
+              style={{
+                color: socialTab === t.id ? '#c9a84c' : 'rgba(255,255,255,0.25)',
+                borderBottom: socialTab === t.id ? '1px solid rgba(201,168,76,0.5)' : '1px solid transparent',
+              }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <AnimatePresence mode="wait">
+          <motion.div key={socialTab}
+            initial={{ opacity:0, y:4 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-4 }}
+            transition={{ duration:0.25 }}
+            className="space-y-3">
+            <div>
+              <p className="text-[7px] uppercase tracking-[0.35em] mb-1" style={{ color:'rgba(201,168,76,0.5)' }}>TITLE</p>
+              <p style={{ fontSize:10, color:'#d4d4d4', lineHeight:1.7, letterSpacing:'0.02em' }}>{social.title}</p>
+            </div>
+            <div>
+              <p className="text-[7px] uppercase tracking-[0.35em] mb-1" style={{ color:'rgba(201,168,76,0.5)' }}>COPYWRITING</p>
+              <p style={{ fontSize:9, color:'#a0a0a0', lineHeight:1.8, letterSpacing:'0.02em', whiteSpace:'pre-line' }}>{social.copy}</p>
+            </div>
+            <div>
+              <p className="text-[7px] uppercase tracking-[0.35em] mb-1" style={{ color:'rgba(201,168,76,0.5)' }}>BGM</p>
+              <p style={{ fontSize:9, color:'#a0a0a0', lineHeight:1.7, letterSpacing:'0.02em' }}>{social.bgm}</p>
+            </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -507,7 +556,7 @@ function MacroView({ images, onEnterMicro, onSelectHero, heroIndex = 0 }) {
       <div className="flex flex-1 gap-6 overflow-hidden">
 
         {/* Left 2/3: hero image */}
-        <div className="flex-1 relative overflow-hidden rounded-xl" style={{ border: '1px solid #222' }}>
+        <div className="flex-1 relative overflow-hidden" style={{ borderRadius: 4, boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 4px 20px rgba(0,0,0,0.5)' }}>
           {/* Ambient blur background from other images */}
           {images.slice(1).map((img) => (
             <div key={img.id} className="absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
@@ -526,7 +575,7 @@ function MacroView({ images, onEnterMicro, onSelectHero, heroIndex = 0 }) {
             transition={{ duration: 0.4 }}
           >
             <img src={hero.url} alt="" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
           </motion.div>
 
           {/* Bottom-left sequence indicator */}
@@ -537,11 +586,28 @@ function MacroView({ images, onEnterMicro, onSelectHero, heroIndex = 0 }) {
             </p>
           </div>
 
-          {/* Top-right drill-down hint */}
-          <div className="absolute top-4 right-4 z-10 px-2.5 py-1 text-[8px] uppercase tracking-[0.3em]"
-            style={{ background:'rgba(0,0,0,0.55)', color:'#c9a84c', border:'1px solid rgba(201,168,76,0.25)', borderRadius: 4 }}>
+          {/* Top-right drill-down hint — glassmorphism */}
+          <motion.div
+            className="absolute top-4 right-4 z-10 px-3 py-1.5 cursor-pointer select-none"
+            style={{
+              background: 'rgba(255,255,255,0.10)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: 4,
+              fontSize: 8,
+              letterSpacing: '0.3em',
+              textTransform: 'uppercase',
+              color: 'rgba(255,255,255,0.9)',
+              fontWeight: 300,
+              textShadow: '0 0 12px rgba(255,255,255,0.3)',
+            }}
+            whileHover={{ background: 'rgba(255,255,255,0.18)', borderColor: 'rgba(255,255,255,0.28)' }}
+            transition={{ duration: 0.2 }}
+            onClick={() => onEnterMicro(heroIndex)}
+          >
             点击拆解
-          </div>
+          </motion.div>
         </div>
 
         {/* Right 1/3: data panel */}
