@@ -429,16 +429,17 @@ function MacroPanel({ images }) {
   const score = (8.2 + images.length * 0.1).toFixed(1);
   const moods = ['压抑', '力量感', '克制'];
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div>
-        <p className="text-[9px] uppercase tracking-[0.35em] text-white/25 mb-1">Vision Sequence</p>
-        <p className="text-lg font-serif tracking-[0.15em]" style={{ color: GOLD }}>SEQUENCE: 01</p>
+        <p className="text-[8px] uppercase tracking-[0.4em] text-white/20 mb-1">Vision Sequence</p>
+        <p className="text-base font-serif tracking-[0.18em]" style={{ color: GOLD }}>SEQUENCE: 01</p>
       </div>
       <div>
-        <p className="text-[9px] uppercase tracking-[0.25em] text-white/25 mb-2">情绪基调</p>
-        <div className="flex flex-wrap gap-2">
+        <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 mb-2.5">情绪基调</p>
+        <div className="flex flex-wrap gap-1.5">
           {moods.map(m => (
-            <span key={m} className="text-[9px] px-2.5 py-1 rounded-full border" style={{ borderColor:'rgba(212,175,55,0.3)', color: GOLD_DIM }}>
+            <span key={m} className="text-[9px] px-2.5 py-1 rounded-full"
+              style={{ border: '1px solid rgba(201,168,76,0.35)', color: 'rgba(201,168,76,0.7)' }}>
               {m}
             </span>
           ))}
@@ -446,18 +447,18 @@ function MacroPanel({ images }) {
       </div>
       <div>
         <div className="flex justify-between mb-2">
-          <p className="text-[9px] uppercase tracking-[0.25em] text-white/25">视觉一致性</p>
+          <p className="text-[8px] uppercase tracking-[0.3em] text-white/20">视觉一致性</p>
           <p className="text-[10px] font-mono" style={{ color: GOLD }}>{score} / 10</p>
         </div>
-        <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+        <div className="h-px bg-white/8 rounded-full overflow-hidden">
           <motion.div initial={{ width:0 }} animate={{ width:`${parseFloat(score)*10}%` }}
-            transition={{ duration:1.2, ease:'easeOut' }} className="h-full rounded-full"
-            style={{ background:`linear-gradient(90deg, ${GOLD}, #f5e17a)` }} />
+            transition={{ duration:1.4, ease:'easeOut' }} className="h-full"
+            style={{ background:`linear-gradient(90deg, #c9a84c, #f5e17a)` }} />
         </div>
       </div>
-      <div className="border-l pl-3" style={{ borderColor:'rgba(212,175,55,0.3)' }}>
-        <p className="text-[9px] uppercase tracking-[0.2em] text-white/25 mb-1">社交发布策略</p>
-        <p className="text-[10px] text-white/45 leading-relaxed">
+      <div className="border-l-[1px] pl-3" style={{ borderColor:'rgba(201,168,76,0.25)' }}>
+        <p className="text-[8px] uppercase tracking-[0.25em] text-white/20 mb-2">社交发布策略</p>
+        <p style={{ fontSize:'10px', color:'#a0a0a0', lineHeight:'1.8', letterSpacing:'0.02em' }}>
           建议采用高反差封面作为首图，文案强化空间留白的叙事张力，序列发布间隔 24h 以维持视觉悬念。
         </p>
       </div>
@@ -466,22 +467,28 @@ function MacroPanel({ images }) {
 }
 
 // ══════════════════════════════════════════════════════
-// Filmstrip
+// Filmstrip — bottom bar
 // ══════════════════════════════════════════════════════
 function Filmstrip({ images, activeIndex, onSelect }) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+    <div className="flex gap-4 overflow-x-auto py-2 scrollbar-none">
       {images.map((img, i) => (
         <motion.button
           key={img.id}
           onClick={() => onSelect(i)}
-          whileHover={{ scale: 1.05 }}
-          className="relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border transition-all duration-300"
-          style={{ borderColor: i === activeIndex ? GOLD : 'rgba(255,255,255,0.08)' }}
+          className="relative flex-shrink-0 overflow-hidden rounded-sm"
+          style={{ width: 72, height: 68 }}
+          whileHover={{ filter: 'brightness(0.75)' }}
+          transition={{ duration: 0.2 }}
         >
-          <img src={img.url} alt="" className="w-full h-full object-cover" style={{ opacity: i === activeIndex ? 1 : 0.4 }} />
+          <img
+            src={img.url}
+            alt=""
+            className="w-full h-full object-cover transition-all duration-300"
+            style={{ filter: i === activeIndex ? 'brightness(1)' : 'brightness(0.4)' }}
+          />
           {i === activeIndex && (
-            <div className="absolute inset-0 rounded-lg" style={{ boxShadow:`inset 0 0 0 1.5px ${GOLD}` }} />
+            <div className="absolute inset-0" style={{ boxShadow:`inset 0 0 0 1px ${GOLD}` }} />
           )}
         </motion.button>
       ))}
@@ -490,57 +497,62 @@ function Filmstrip({ images, activeIndex, onSelect }) {
 }
 
 // ══════════════════════════════════════════════════════
-// MacroView — series collage
+// MacroView — single hero + ambient bg + pinned filmstrip
 // ══════════════════════════════════════════════════════
-function MacroView({ images, onEnterMicro }) {
-  const hero = images[0];
-  const rest = images.slice(1);
+function MacroView({ images, onEnterMicro, onSelectHero, heroIndex = 0 }) {
+  const hero = images[heroIndex];
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full">
-      {/* Left: collage */}
-      <div className="flex-1 relative min-h-[320px]">
-        {/* Hero */}
-        <motion.div
-          layoutId={`img-${hero.id}`}
-          className="absolute inset-0 rounded-2xl overflow-hidden cursor-pointer"
-          onClick={() => onEnterMicro(0)}
-          whileHover={{ scale: 1.01 }}
-        >
-          <img src={hero.url} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-          <div className="absolute bottom-4 left-4">
-            <p className="text-[9px] uppercase tracking-[0.35em] text-white/40">Hero Frame</p>
-            <p className="text-sm font-serif tracking-[0.15em]" style={{ color: GOLD }}>01 / {images.length.toString().padStart(2,'0')}</p>
+    <div className="flex flex-col h-full" style={{ minHeight: 520 }}>
+      {/* Main row: hero 2/3 + panel 1/3 */}
+      <div className="flex flex-1 gap-6 overflow-hidden">
+
+        {/* Left 2/3: hero image */}
+        <div className="flex-1 relative overflow-hidden rounded-xl" style={{ border: '1px solid #222' }}>
+          {/* Ambient blur background from other images */}
+          {images.slice(1).map((img) => (
+            <div key={img.id} className="absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+              <img src={img.url} alt="" className="w-full h-full object-cover"
+                style={{ filter: 'blur(24px)', opacity: 0.08, transform: 'scale(1.1)' }} />
+            </div>
+          ))}
+
+          {/* Hero image */}
+          <motion.div
+            layoutId={`img-${hero.id}`}
+            className="absolute inset-0 cursor-pointer"
+            style={{ zIndex: 1 }}
+            onClick={() => onEnterMicro(0)}
+            whileHover={{ scale: 1.008 }}
+            transition={{ duration: 0.4 }}
+          >
+            <img src={hero.url} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+          </motion.div>
+
+          {/* Bottom-left sequence indicator */}
+          <div className="absolute bottom-4 left-4 z-10">
+            <p className="text-[8px] uppercase tracking-[0.4em] text-white/35 font-light">Hero Frame</p>
+            <p className="text-sm font-serif tracking-[0.2em] mt-0.5" style={{ color: '#c9a84c' }}>
+              {String(heroIndex + 1).padStart(2,'0')} / {String(images.length).padStart(2,'0')}
+            </p>
           </div>
-          <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[9px] uppercase tracking-[0.25em]"
-            style={{ background:'rgba(0,0,0,0.5)', color: GOLD, border:`1px solid rgba(212,175,55,0.3)` }}>
+
+          {/* Top-right drill-down hint */}
+          <div className="absolute top-4 right-4 z-10 px-2.5 py-1 text-[8px] uppercase tracking-[0.3em]"
+            style={{ background:'rgba(0,0,0,0.55)', color:'#c9a84c', border:'1px solid rgba(201,168,76,0.25)', borderRadius: 4 }}>
             点击拆解
           </div>
-        </motion.div>
+        </div>
 
-        {/* Overlay thumbnails */}
-        {rest.slice(0,2).map((img, i) => (
-          <motion.div
-            key={img.id}
-            layoutId={`img-${img.id}`}
-            className="absolute rounded-xl overflow-hidden cursor-pointer border border-white/10"
-            style={{
-              width: '28%', aspectRatio:'3/4',
-              bottom: i === 0 ? '12%' : '4%',
-              right: i === 0 ? '2%' : '30%',
-              opacity: 0.65,
-            }}
-            onClick={() => onEnterMicro(i + 1)}
-            whileHover={{ opacity: 1, scale: 1.03 }}
-          >
-            <img src={img.url} alt="" className="w-full h-full object-cover" />
-          </motion.div>
-        ))}
+        {/* Right 1/3: data panel */}
+        <div className="w-60 xl:w-64 flex-shrink-0 flex flex-col justify-center py-4">
+          <MacroPanel images={images} />
+        </div>
       </div>
 
-      {/* Right: MacroPanel */}
-      <div className="lg:w-64 xl:w-72 flex-shrink-0 flex flex-col justify-center">
-        <MacroPanel images={images} />
+      {/* Bottom filmstrip */}
+      <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <Filmstrip images={images} activeIndex={heroIndex} onSelect={onSelectHero} />
       </div>
     </div>
   );
@@ -783,7 +795,7 @@ export function AestheticsLab({ initialFiles, onExit }) {
               <AnimatePresence mode="wait">
                 {currentView === 'macro' ? (
                   <motion.div key="macro" {...FADE} className="h-full">
-                    <MacroView images={images} onEnterMicro={handleEnterMicro} />
+                    <MacroView images={images} heroIndex={activeImageIndex} onEnterMicro={handleEnterMicro} onSelectHero={(i) => { setActiveImageIndex(i); }} />
                   </motion.div>
                 ) : (
                   <motion.div key="micro" {...FADE} className="h-full">
