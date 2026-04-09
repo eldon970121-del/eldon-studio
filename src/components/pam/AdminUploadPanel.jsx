@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import Uppy from "@uppy/core";
-import { Dashboard } from "@uppy/dashboard";
+import Dashboard from "@uppy/dashboard";
 import XHRUpload from "@uppy/xhr-upload";
-import "@uppy/core/dist/style.min.css";
-import "@uppy/dashboard/dist/style.min.css";
+import "@uppy/core/css/style.min.css";
+import "@uppy/dashboard/css/style.min.css";
 
 // ── 环境常量 ─────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_LUMINA_API || 'https://lumina-server-production.up.railway.app';
