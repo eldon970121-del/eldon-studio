@@ -1328,6 +1328,7 @@ export default function App() {
     const validViews = ['home', 'lab', 'booking'];
     return validViews.includes(urlView) ? urlView : 'home';
   });
+  const [labFiles, setLabFiles] = useState([]);
   const [luminaReportData, setLuminaReportData] = useState(null);
   const [clientSlug, setClientSlug] = useState("");
   const [proofSlug, setProofSlug] = useState(null);
@@ -1654,6 +1655,14 @@ export default function App() {
 
   const onOpenLab = () => {
     setSelectedPortfolioId(null);
+    setLabFiles([]);
+    setView("lab");
+    window.scrollTo(0, 0);
+  };
+
+  const onEnterLab = (files) => {
+    setSelectedPortfolioId(null);
+    setLabFiles(files);
     setView("lab");
     window.scrollTo(0, 0);
   };
@@ -1662,7 +1671,7 @@ export default function App() {
     <div className={`min-h-screen bg-[color:var(--site-bg)] text-[color:var(--site-text)] ${locale === "zh" ? "lang-zh" : "lang-en"}`} lang={locale === "zh" ? "zh-CN" : "en"}>
       {selectedPortfolio ? (
         <DetailUtilityBar locale={locale} onToggleLocale={setLocale} copy={copy} userEmail={userEmail} isAdmin={isAdmin} onOpenAuth={() => setAuthModalOpen(true)} onSignOut={handleSignOut} />
-      ) : view === "client-portal" || view === "admin" ? null : (
+      ) : view === "client-portal" || view === "admin" || view === "lab" ? null : (
         <ImmersiveNavbar
           profile={profile} copy={copy} locale={locale} isSolid={isPastHero} isAdmin={isAdmin} userEmail={userEmail}
           onToggleLocale={setLocale} onOpenAuth={() => setAuthModalOpen(true)} onSignOut={handleSignOut}
@@ -1681,14 +1690,10 @@ export default function App() {
           <div className="min-h-screen pt-24"><BookingProjectsSection copy={copy} locale={locale} luminaUrl={LUMINA_URL} isAdmin={isAdmin} /></div>
           <Footer profile={profile} copy={copy} locale={locale} luminaUrl={LUMINA_URL} />
         </>
-      ) : view === "lumina-report" ? (
-        <React.Suspense fallback={<div className="h-screen bg-black" />}>
-          <LuminaReport imageData={luminaReportData?.imageData} locale={locale} onBook={() => setView("booking")} onGoHome={() => setView("home")} />
-        </React.Suspense>
       ) : view === "lab" || view === "client" || view === "admin" || selectedPortfolio ? (
-        <React.Suspense fallback={<div className="h-screen bg-[#131313]" />}>
+        <React.Suspense fallback={<div className="h-screen bg-[#0a0a0a]" />}>
           {view === "lab" ? (
-            <LuminaLabPage copy={copy} locale={locale} />
+            <LuminaLabPage copy={copy} locale={locale} initialFiles={labFiles} onExit={() => { setView("home"); setLabFiles([]); window.scrollTo(0,0); }} />
           ) : view === "client" ? (
             <ClientPortalPage slug={clientSlug} onGoHome={() => setView("home")} />
           ) : view === "admin" ? (
@@ -1721,7 +1726,7 @@ export default function App() {
             onEdit={(portfolio) => setEditorState({ open: true, portfolio })}
             onDelete={(id) => setConfirmState({ title: copy.confirm.deletePortfolioTitle, description: copy.confirm.deletePortfolioText, onConfirm: () => handleDeletePortfolio(id) })}
           />
-          <LuminaLab locale={locale} onSetView={(v, data) => { setLuminaReportData(data); setView(v); }} />
+          <LuminaLab locale={locale} onEnterLab={onEnterLab} />
           <Footer profile={profile} copy={copy} locale={locale} luminaUrl={LUMINA_URL} />
         </>
       )}

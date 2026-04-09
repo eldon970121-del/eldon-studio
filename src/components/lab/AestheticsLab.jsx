@@ -675,13 +675,21 @@ function MicroView({ images, activeIndex, activeMicroTab, setActiveMicroTab, img
 // ══════════════════════════════════════════════════════
 // Main export
 // ══════════════════════════════════════════════════════
-export function AestheticsLab() {
+export function AestheticsLab({ initialFiles, onExit }) {
   const [images, setImages]               = useState([]);
-  const [phase, setPhase]                 = useState('upload');   // 'upload'|'developing'|'ready'
-  const [currentView, setCurrentView]     = useState('macro');    // 'macro'|'micro'
+  const [phase, setPhase]                 = useState('upload');
+  const [currentView, setCurrentView]     = useState('macro');
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeMicroTab, setActiveMicroTab]     = useState('lighting');
   const [imgSize, setImgSize]             = useState({ w: 0, h: 0 });
+
+  // Auto-start if files passed from homepage dropzone
+  useEffect(() => {
+    if (initialFiles?.length) {
+      handleFiles(initialFiles);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleFiles(files) {
     const newImages = Array.from(files).map(file => ({
@@ -722,9 +730,19 @@ export function AestheticsLab() {
       {/* Header */}
       <div className="relative px-6 pt-6 pb-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
         <div className="flex items-end justify-between">
-          <div>
-            <p className="text-[9px] uppercase tracking-[0.45em] mb-1" style={{ color: GOLD_DIM }}>Lumina · Visual Deconstructor</p>
-            <h2 className="font-serif text-xl tracking-[0.12em] text-white/90">美学拆解仪</h2>
+          <div className="flex items-center gap-5">
+            {onExit && (
+              <button
+                onClick={onExit}
+                className="text-[9px] uppercase tracking-[0.3em] text-white/20 hover:text-white/60 transition-colors"
+              >
+                ← 退出暗房
+              </button>
+            )}
+            <div>
+              <p className="text-[9px] uppercase tracking-[0.45em] mb-1" style={{ color: GOLD_DIM }}>Lumina · Visual Deconstructor</p>
+              <h2 className="font-serif text-xl tracking-[0.12em] text-white/90">美学拆解仪</h2>
+            </div>
           </div>
           {phase === 'ready' && (
             <div className="flex items-center gap-3">
