@@ -16,6 +16,7 @@ import { PracticeSection } from "./components/sections/PracticeSection";
 import { StorySection } from "./components/sections/StorySection";
 import { PortfolioMasonry } from "./components/sections/PortfolioMasonry";
 import { BookingProjectsSection } from "./components/sections/BookingProjectsSection";
+import { BookingSection } from "./components/sections/BookingSection";
 import { LuminaLab } from "./components/sections/LuminaLab";
 import { Footer } from "./components/layout/Footer";
 import { PortfolioEditorModal } from "./components/modals/PortfolioEditorModal";
@@ -1705,6 +1706,7 @@ export default function App() {
             onDelete={(id) => setConfirmState({ title: copy.confirm.deletePortfolioTitle, description: copy.confirm.deletePortfolioText, onConfirm: () => handleDeletePortfolio(id) })}
           />
           <LuminaLab locale={locale} onEnterLab={onEnterLab} />
+          <BookingSection locale={locale} onBackToGallery={() => { const el = document.getElementById("portfolio"); if (el) el.scrollIntoView({ behavior: "smooth" }); }} />
           <Footer profile={profile} copy={copy} locale={locale} luminaUrl={LUMINA_URL} />
         </>
       )}
