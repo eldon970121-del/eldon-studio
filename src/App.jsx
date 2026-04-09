@@ -1360,33 +1360,13 @@ export default function App() {
     let mounted = true;
 
     async function hydrate() {
-      const [storedProfile] = await Promise.all([
+      const [storedProfile, storedPortfolios] = await Promise.all([
         loadProfileFromStorage(),
+        loadPortfoliosFromStorage(),
       ]);
 
-      // 优先从 Railway API 拉取作品库
-      let apiPortfolios = null;
-      try {
-        const res = await fetch(PORTFOLIO_API);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.portfolios) && data.portfolios.length > 0) {
-            apiPortfolios = data.portfolios.map(p => toPortfolioShape(p));
-          }
-        }
-      } catch {
-        // API 不可达时静默降级
-      }
-
       if (mounted) {
-        if (apiPortfolios) {
-          // 云端数据优先
-          setPortfolios(apiPortfolios);
-        } else {
-          // 降级到 localStorage 缓存
-          const storedPortfolios = await loadPortfoliosFromStorage();
-          if (storedPortfolios) setPortfolios(storedPortfolios);
-        }
+        if (storedPortfolios) setPortfolios(storedPortfolios);
         if (storedProfile) setProfile(storedProfile);
         setLoaded(true);
       }

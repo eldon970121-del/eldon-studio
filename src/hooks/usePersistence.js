@@ -1,4 +1,10 @@
 import { useCallback } from "react";
+import {
+  loadPortfoliosFromCloud,
+  savePortfoliosToCloud,
+  loadProfileFromCloud,
+  saveProfileToCloud,
+} from "../services/supabaseDb";
 
 const DB_NAME = "eldon-studio-site";
 const STORE_NAME = "persistent-state";
@@ -108,20 +114,39 @@ export function usePersistence({ toPortfolioShape, toProfileShape }) {
   }, []);
 
   const loadPortfoliosFromStorage = useCallback(async () => {
+    // Try Supabase cloud first
+    const cloudData = await loadPortfoliosFromCloud();
+    if (cloudData) {
+      // Warm the local cache in the background
+      saveValueToStorage(STORAGE_KEY, LOCAL_STORAGE_KEY, cloudData).catch(() => {});
+      return cloudData.map(toPortfolioShape);
+    }
+    // Fall back to IndexedDB / localStorage
     const value = await loadValueFromStorage(STORAGE_KEY, LOCAL_STORAGE_KEY);
     return Array.isArray(value) ? value.map(toPortfolioShape) : null;
   }, [toPortfolioShape]);
 
   const savePortfoliosToStorage = useCallback(async (portfolios) => {
+    // Write to cloud (fire-and-forget) and local cache simultaneously
+    savePortfoliosToCloud(portfolios).catch(() => {});
     return saveValueToStorage(STORAGE_KEY, LOCAL_STORAGE_KEY, portfolios);
   }, []);
 
   const loadProfileFromStorage = useCallback(async () => {
+    // Try Supabase cloud first
+    const cloudData = await loadProfileFromCloud();
+    if (cloudData) {
+      saveValueToStorage(PROFILE_STORAGE_KEY, PROFILE_LOCAL_STORAGE_KEY, cloudData).catch(() => {});
+      return toProfileShape(cloudData);
+    }
+    // Fall back to IndexedDB / localStorage
     const value = await loadValueFromStorage(PROFILE_STORAGE_KEY, PROFILE_LOCAL_STORAGE_KEY);
     return value && typeof value === "object" ? toProfileShape(value) : null;
   }, [toProfileShape]);
 
   const saveProfileToStorage = useCallback(async (profile) => {
+    // Write to cloud (fire-and-forget) and local cache simultaneously
+    saveProfileToCloud(profile).catch(() => {});
     return saveValueToStorage(PROFILE_STORAGE_KEY, PROFILE_LOCAL_STORAGE_KEY, profile);
   }, []);
 
