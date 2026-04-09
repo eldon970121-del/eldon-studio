@@ -66,11 +66,13 @@ export function AuthModal({ copy, isOpen, onClose }) {
         }, 600);
 
       } else {
-        throw new Error(data.message || copy.login.authUnavailable);
+        throw new Error(data.message || data.error || copy.login.authUnavailable);
       }
     } catch (error) {
       console.error("Lumina Engine 连接失败:", error);
-      setErrorMessage("无法连接到中枢大脑，请稍后再试");
+      setErrorMessage(error.message?.includes('fetch') || error.message?.includes('Failed')
+        ? "无法连接到中枢大脑，请稍后再试"
+        : (error.message || "无法连接到中枢大脑，请稍后再试"));
     } finally {
       setIsSubmitting(false);
     }
