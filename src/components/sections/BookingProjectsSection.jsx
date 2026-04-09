@@ -1,7 +1,4 @@
 import { useEffect, useState } from "react";
-import { submitBookingToLumina } from "../../services/booking";
-
-const EMPTY_FORM = { name: "", email: "", projectType: "editorial", preferredDate: "", narrative: "" };
 
 function PencilIcon() {
   return (
@@ -81,43 +78,19 @@ function PricingCard({ pkg, isAdmin, editingId, onEditStart, onEditSave, onEditC
   );
 }
 
-export function BookingProjectsSection({ copy, locale, luminaUrl, isAdmin }) {
+export function BookingProjectsSection({ copy, locale, isAdmin }) {
   const b = copy.booking;
   const [packages, setPackages] = useState(() => b.packages || []);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => { if (b.packages) setPackages(b.packages); }, [b.packages]);
 
-  function handleChange(e) { const { name, value } = e.target; setForm(p => ({ ...p, [name]: value })); }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setSubmitError("");
-    setIsSubmitted(false);
-    try {
-      const result = await submitBookingToLumina({ clientName: form.name.trim(), contactEmail: form.email.trim(), shootType: form.projectType, preferredDate: form.preferredDate, budgetRange: "", createdAt: new Date().toISOString() });
-      if (result?.ok) { setForm(EMPTY_FORM); setIsSubmitted(true); }
-    } catch {
-      setSubmitError(b.submitError || (locale === "zh" ? "提交失败，请稍后重试。" : "Submission failed. Please try again shortly."));
-    } finally { setIsSubmitting(false); }
-  }
-
-  const projectTypes = b.shootTypeOptions || [];
-
-  const sectionBg = "var(--site-bg)";
-  const deepBg = "var(--site-bg-deep)";
   const borderColor = "rgba(255,255,255,0.07)";
-  const inputBase = { background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,0.15)", color: "var(--site-text)", padding: "0.75rem 0", fontSize: "0.875rem", outline: "none", width: "100%", fontFamily: "var(--font-body)", transition: "border-color 0.25s" };
 
   return (
-    <section id="booking" style={{ background: sectionBg }}>
+    <section id="booking" style={{ background: "var(--site-bg)" }}>
       {/* Hero */}
-      <div style={{ maxWidth: "80rem", padding: "8rem 3rem 6rem", marginBottom: 0 }}>
+      <div style={{ maxWidth: "80rem", padding: "8rem 3rem 6rem" }}>
         <span style={{ display: "block", marginBottom: "1.5rem", fontSize: "0.625rem", letterSpacing: "0.4em", textTransform: "uppercase", color: "var(--site-muted)", fontFamily: "var(--font-body)" }}>
           {b.eyebrow || "Curated Services"}
         </span>
@@ -141,64 +114,64 @@ export function BookingProjectsSection({ copy, locale, luminaUrl, isAdmin }) {
         </div>
       </div>
 
-      {/* Contact form */}
-      <div style={{ background: deepBg, padding: "8rem 3rem" }}>
-        <div style={{ maxWidth: "80rem", margin: "0 auto", display: "flex", flexDirection: "row", gap: "5rem", flexWrap: "wrap" }}>
+      {/* Miniprogram CTA */}
+      <div style={{ background: "var(--site-bg-deep)", padding: "8rem 3rem" }}>
+        <div style={{ maxWidth: "80rem", margin: "0 auto", display: "flex", flexDirection: "row", gap: "5rem", flexWrap: "wrap", alignItems: "center" }}>
+
+          {/* Left: copy */}
           <div style={{ flex: "0 0 28%", minWidth: "220px" }}>
-            <h3 style={{ marginBottom: "2rem", fontFamily: "var(--font-display)", fontSize: "clamp(2rem,4vw,3rem)", lineHeight: 1.1, letterSpacing: "-0.045em", color: "var(--site-text)" }}>
-              {(b.dialogueHeading || "Start the Dialogue").split(" ").slice(0, 2).join(" ")}<br />
-              {(b.dialogueHeading || "Start the Dialogue").split(" ").slice(2).join(" ")}
+            <span style={{ display: "block", marginBottom: "1.25rem", fontSize: "0.625rem", letterSpacing: "0.4em", textTransform: "uppercase", color: "var(--site-muted)", fontFamily: "var(--font-body)" }}>
+              Booking &amp; Inquiry
+            </span>
+            <h3 style={{ marginBottom: "1.5rem", fontFamily: "var(--font-display)", fontSize: "clamp(2rem,4vw,3rem)", lineHeight: 1.1, letterSpacing: "-0.045em", color: "var(--site-text)" }}>
+              预约专属<br />
+              <em style={{ fontStyle: "italic" }}>拍摄委托</em>
             </h3>
             <p style={{ fontSize: "0.875rem", lineHeight: 1.85, color: "var(--site-muted)", fontWeight: 300 }}>
-              {b.dialogueText || "Each project is a unique collaboration. Please share your vision, and we will contact you within 24 hours to schedule a deep-dive consultation."}
+              请使用微信扫码进入 Lumina 专属小程序，开启您的影像定制之旅。
             </p>
           </div>
 
-          <div style={{ flex: "1 1 0", minWidth: "280px" }}>
-            {isSubmitted ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "1rem", borderBottom: `1px solid ${borderColor}`, padding: "2rem 0" }}>
-                <span style={{ width: "8px", height: "8px", borderRadius: "9999px", background: "var(--site-accent)", flexShrink: 0 }} />
-                <p style={{ fontSize: "0.7rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--site-muted)", fontFamily: "var(--font-body)" }}>
-                  {b.successMsg || (locale === "zh" ? "感谢您的询问，我们将在 24 小时内联系您。" : "Inquiry received. We will reach out within 24 hours.")}
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2.5rem 3rem" }}>
-                {[
-                  { label: b.nameLabel || "Name", name: "name", type: "text", placeholder: b.namePlaceholder || "E.g. Julian Vayne", required: true, span: false },
-                  { label: b.emailLabel || "Email Address", name: "email", type: "email", placeholder: b.emailPlaceholder || "your@email.com", required: true, span: false },
-                ].map(({ label, name, type, placeholder, required }) => (
-                  <div key={name} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <label style={{ fontSize: "0.625rem", letterSpacing: "0.25em", textTransform: "uppercase", color: "var(--site-muted)", fontFamily: "var(--font-body)" }}>{label}</label>
-                    <input type={type} name={name} required={required} placeholder={placeholder} value={form[name]} onChange={handleChange} style={inputBase} />
-                  </div>
-                ))}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  <label style={{ fontSize: "0.625rem", letterSpacing: "0.25em", textTransform: "uppercase", color: "var(--site-muted)", fontFamily: "var(--font-body)" }}>{b.projectTypeLabel || "Project Type"}</label>
-                  <select name="projectType" value={form.projectType} onChange={handleChange} style={{ ...inputBase, appearance: "none", backgroundColor: "transparent" }}>
-                    {projectTypes.map(opt => <option key={opt.value} value={opt.value} style={{ background: "var(--site-bg-deep)" }}>{opt.label}</option>)}
-                  </select>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  <label style={{ fontSize: "0.625rem", letterSpacing: "0.25em", textTransform: "uppercase", color: "var(--site-muted)", fontFamily: "var(--font-body)" }}>{b.dateLabel || "Preferred Date"}</label>
-                  <input type="date" name="preferredDate" required value={form.preferredDate} onChange={handleChange} style={{ ...inputBase, colorScheme: "dark" }} />
-                </div>
-                <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  <label style={{ fontSize: "0.625rem", letterSpacing: "0.25em", textTransform: "uppercase", color: "var(--site-muted)", fontFamily: "var(--font-body)" }}>{b.narrativeLabel || "Project Narrative"}</label>
-                  <textarea name="narrative" rows={4} placeholder={b.narrativePlaceholder || "Briefly describe..."} value={form.narrative} onChange={handleChange} style={{ ...inputBase, resize: "none", borderBottom: "1px solid rgba(255,255,255,0.15)" }} />
-                </div>
-                {submitError && (
-                  <p style={{ gridColumn: "1 / -1", fontSize: "0.625rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "#f87171", fontFamily: "var(--font-body)" }}>{submitError}</p>
-                )}
-                <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end" }}>
-                  <button type="submit" disabled={isSubmitting}
-                    style={{ padding: "1.1rem 3.5rem", fontSize: "0.7rem", letterSpacing: "0.2em", textTransform: "uppercase", background: "var(--site-text)", color: "var(--site-bg-deep)", fontFamily: "var(--font-body)", border: "none", cursor: isSubmitting ? "not-allowed" : "pointer", opacity: isSubmitting ? 0.55 : 1, transition: "opacity 0.25s" }}>
-                    {isSubmitting ? (b.sendingBtn || (locale === "zh" ? "提交中..." : "Sending...")) : (b.sendBtn || (locale === "zh" ? "发送询问" : "Send Inquiry"))}
-                  </button>
-                </div>
-              </form>
-            )}
+          {/* Right: QR placeholder */}
+          <div style={{ flex: "1 1 0", minWidth: "280px", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2rem" }}>
+            {/* QR code box */}
+            <div style={{
+              width: "200px",
+              height: "200px",
+              border: "1px solid rgba(212, 175, 55, 0.35)",
+              borderRadius: "0.75rem",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.75rem",
+              background: "rgba(212,175,55,0.03)",
+              boxShadow: "0 0 40px rgba(212,175,55,0.06)",
+            }}>
+              {/* Grid icon suggesting QR */}
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="rgba(212,175,55,0.4)" strokeWidth="1.5">
+                <rect x="6" y="6" width="14" height="14" rx="1.5" />
+                <rect x="28" y="6" width="14" height="14" rx="1.5" />
+                <rect x="6" y="28" width="14" height="14" rx="1.5" />
+                <rect x="10" y="10" width="6" height="6" fill="rgba(212,175,55,0.4)" stroke="none" />
+                <rect x="32" y="10" width="6" height="6" fill="rgba(212,175,55,0.4)" stroke="none" />
+                <rect x="10" y="32" width="6" height="6" fill="rgba(212,175,55,0.4)" stroke="none" />
+                <rect x="28" y="28" width="6" height="6" fill="rgba(212,175,55,0.25)" stroke="none" />
+                <rect x="36" y="28" width="6" height="6" fill="rgba(212,175,55,0.25)" stroke="none" />
+                <rect x="28" y="36" width="6" height="6" fill="rgba(212,175,55,0.25)" stroke="none" />
+                <rect x="36" y="36" width="6" height="6" fill="rgba(212,175,55,0.25)" stroke="none" />
+              </svg>
+              <span style={{ fontSize: "0.55rem", letterSpacing: "0.25em", textTransform: "uppercase", color: "rgba(212,175,55,0.4)", fontFamily: "var(--font-body)" }}>
+                微信扫码
+              </span>
+            </div>
+
+            <p style={{ fontSize: "0.625rem", letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--site-muted)", fontFamily: "var(--font-body)", lineHeight: 1.8 }}>
+              Lumina Miniprogram · WeChat Exclusive<br />
+              <span style={{ color: "rgba(212,175,55,0.5)" }}>影像定制 · 选片 · 交付 · 一站完成</span>
+            </p>
           </div>
+
         </div>
       </div>
     </section>

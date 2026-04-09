@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '../../lib/supabaseClient';
+
+const API_BASE = import.meta.env.VITE_LUMINA_URL || import.meta.env.VITE_LUMINA_API_URL || '';
 
 // English id → localised display label
 const WEAKNESS_LABELS = {
@@ -36,8 +37,8 @@ const T = {
     submitIdle:     "Request Concept Call",
     submitLoading:  "Sending...",
     cancelBtn:      "Cancel",
-    successMsg:     "Transmission received.",
-    successSub:     "Eldon Studio will contact you within 24 hours.",
+    successMsg:     "Your vision has been received.",
+    successSub:     "Eldon Studio will reach out within 24 hours.",
     returnBtn:      "← Return",
     errorMsg:       "Submission failed. Please try again later.",
   },
@@ -56,8 +57,8 @@ const T = {
     submitIdle:     "申请创作咨询",
     submitLoading:  "提交中...",
     cancelBtn:      "取消",
-    successMsg:     "信息已收到。",
-    successSub:     "Eldon Studio 将在 24 小时内与您联系。",
+    successMsg:     "感谢您的委托，Eldon Studio 已收到您的影像诉求。",
+    successSub:     "我们将尽快与您取得联系，请保持微信或邮箱畅通。",
     returnBtn:      "← 返回",
     errorMsg:       "提交失败，请稍后重试。",
   },
@@ -81,16 +82,21 @@ export function LuminaBookingModal({ weaknessProp, locale = 'en', onClose }) {
     setLoading(true);
     setError(null);
     try {
-      const { error: sbError } = await supabase
-        .from('leads')
-        .insert({
+      const res = await fetch(`${API_BASE}/api/inquiries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           client_name:     name,
-          client_email:    contact,
-          lumina_weakness: weaknessProp,
-          message:         vision || null,
-        });
-      if (sbError) throw sbError;
+          contact:         contact,
+          emotion:         vision || null,
+          emotional_theme: weaknessProp || null,
+        })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSuccess(true);
+      setName('');
+      setContact('');
+      setVision('');
     } catch {
       setError(t.errorMsg);
     } finally {

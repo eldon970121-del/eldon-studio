@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { usePersistence } from "./hooks/usePersistence";
 import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
 import {
@@ -20,6 +21,7 @@ import { Footer } from "./components/layout/Footer";
 import { PortfolioEditorModal } from "./components/modals/PortfolioEditorModal";
 import { ProfileEditorModal } from "./components/modals/ProfileEditorModal";
 import { ConfirmDialog } from "./components/modals/ConfirmDialog";
+import LuminaUploadCenter from "./components/admin/LuminaUploadCenter";
 
 const LUMINA_URL = import.meta.env.VITE_LUMINA_URL || "http://127.0.0.1:5173";
 const ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAIL || "").trim().toLowerCase();
@@ -68,7 +70,15 @@ const initialProfile = {
     "https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=400&q=80",
 };
 
-const initialPortfolios = [
+const PORTFOLIO_API = import.meta.env.VITE_LUMINA_URL
+  ? `${import.meta.env.VITE_LUMINA_URL}/api/portfolios`
+  : 'http://localhost:3000/api/portfolios';
+
+// ── 占位符：API 未返回前显示空列表（hydrate 会立即拉取）──
+const initialPortfolios = [];
+
+/* ── 以下为原硬编码占位图数据，已迁移至 Railway MySQL (lumina_portfolios) ──
+const _removedInitialPortfolios = [
   {
     id: 1,
     narrative: "STUDIO",
@@ -291,7 +301,7 @@ const initialPortfolios = [
       },
     ],
   },
-];
+]; ── */
 
 const practiceRows = [
   {
@@ -1288,7 +1298,6 @@ export default function App() {
   const [locale, setLocale] = useState(() => getInitialLocale());
   const [loaded, setLoaded] = useState(false);
   
-  // 🔥 改动点 1: 初始化时直接读取云端下发的本地缓存，抛弃 Supabase 的默认状态
   const [authUser, setAuthUser] = useState(() => {
     if (typeof window !== "undefined") {
       try {
@@ -1309,22 +1318,24 @@ export default function App() {
   const [backupFile, setBackupFile] = useState(null);
   const [backupStatus, setBackupStatus] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  
+  // 🔥 新增：上传订单管理状态
+  const [uploadingOrderNo, setUploadingOrderNo] = useState(null);
+
   const [view, setView] = useState(() => {
-  const params = new URLSearchParams(window.location.search);
-  const urlView = params.get('view');
-  const validViews = ['home', 'lab', 'booking'];
-  return validViews.includes(urlView) ? urlView : 'home';
-});
+    const params = new URLSearchParams(window.location.search);
+    const urlView = params.get('view');
+    const validViews = ['home', 'lab', 'booking'];
+    return validViews.includes(urlView) ? urlView : 'home';
+  });
   const [luminaReportData, setLuminaReportData] = useState(null);
   const [clientSlug, setClientSlug] = useState("");
   const [proofSlug, setProofSlug] = useState(null);
 
   useEffect(() => {
-    console.log('🔥 App.jsx URL Parser Running');
     const params = new URLSearchParams(window.location.search);
     const adminParam = params.get('admin');
     const slug = params.get('slug');
-    console.log('🔍 Extracted Slug from Params:', slug);
     if (adminParam === 'true') {
       setView('admin');
     } else if (slug) {
@@ -1336,7 +1347,6 @@ export default function App() {
   const copy = siteCopy[locale];
   const userEmail = authUser?.email?.trim() || "";
   
-  // 🔥 改动点 2: 优先使用云端数据库下发的 role 字段来判断最高权限，再保留环境变量作为兜底
   const isAdmin = Boolean(
     authUser?.role === 'admin' || 
     (userEmail && ADMIN_EMAIL && userEmail.toLowerCase() === ADMIN_EMAIL)
@@ -1347,23 +1357,38 @@ export default function App() {
     [portfolios, selectedPortfolioId],
   );
 
-  // 🔥 改动点 3: 彻底删除了监听 supabase.auth 状态变化的 useEffect，完全由我们的 Lumina Engine 接管
-
   useEffect(() => {
     let mounted = true;
 
     async function hydrate() {
-      const [storedPortfolios, storedProfile] = await Promise.all([
-        loadPortfoliosFromStorage(),
+      const [storedProfile] = await Promise.all([
         loadProfileFromStorage(),
       ]);
-      if (mounted && storedPortfolios) {
-        setPortfolios(storedPortfolios);
+
+      // 优先从 Railway API 拉取作品库
+      let apiPortfolios = null;
+      try {
+        const res = await fetch(PORTFOLIO_API);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.portfolios) && data.portfolios.length > 0) {
+            apiPortfolios = data.portfolios.map(p => toPortfolioShape(p));
+          }
+        }
+      } catch {
+        // API 不可达时静默降级
       }
-      if (mounted && storedProfile) {
-        setProfile(storedProfile);
-      }
+
       if (mounted) {
+        if (apiPortfolios) {
+          // 云端数据优先
+          setPortfolios(apiPortfolios);
+        } else {
+          // 降级到 localStorage 缓存
+          const storedPortfolios = await loadPortfoliosFromStorage();
+          if (storedPortfolios) setPortfolios(storedPortfolios);
+        }
+        if (storedProfile) setProfile(storedProfile);
         setLoaded(true);
       }
     }
@@ -1379,7 +1404,6 @@ export default function App() {
     if (!loaded) {
       return;
     }
-
     savePortfoliosToStorage(portfolios);
   }, [portfolios, loaded, savePortfoliosToStorage]);
 
@@ -1387,7 +1411,6 @@ export default function App() {
     if (!loaded) {
       return;
     }
-
     saveProfileToStorage(profile);
   }, [profile, loaded, saveProfileToStorage]);
 
@@ -1396,8 +1419,6 @@ export default function App() {
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
     document.documentElement.classList.toggle("lang-en", locale === "en");
     document.documentElement.classList.toggle("lang-zh", locale === "zh");
-    document.body.classList.toggle("lang-en", locale === "en");
-    document.body.classList.toggle("lang-zh", locale === "zh");
     document.title = locale === "zh" ? "Eldon Studio 摄影官网" : "Eldon Studio";
   }, [locale, persistLocale]);
 
@@ -1407,16 +1428,13 @@ export default function App() {
         event.preventDefault();
       }
     }
-
     function blockMediaDrag(event) {
       if (event.target instanceof Element && event.target.closest("img")) {
         event.preventDefault();
       }
     }
-
     window.addEventListener("contextmenu", blockMediaContext, true);
     window.addEventListener("dragstart", blockMediaDrag, true);
-
     return () => {
       window.removeEventListener("contextmenu", blockMediaContext, true);
       window.removeEventListener("dragstart", blockMediaDrag, true);
@@ -1428,39 +1446,27 @@ export default function App() {
       setIsPastHero(true);
       return undefined;
     }
-
     let frameId = null;
-
     function handleScroll() {
-      if (frameId !== null) {
-        return;
-      }
-
+      if (frameId !== null) return;
       frameId = window.requestAnimationFrame(() => {
         frameId = null;
         const nextValue = window.scrollY > window.innerHeight - 110;
         setIsPastHero((current) => (current === nextValue ? current : nextValue));
       });
     }
-
     handleScroll();
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleScroll);
-
     return () => {
-      if (frameId !== null) {
-        window.cancelAnimationFrame(frameId);
-      }
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleScroll);
     };
   }, [selectedPortfolio]);
 
   useEffect(() => {
-    if (isAdmin) {
-      return;
-    }
-
+    if (isAdmin) return;
     setEditorState((current) => (current.open ? { open: false, portfolio: null } : current));
     setProfileEditorOpen(false);
     setBackupFile(null);
@@ -1468,52 +1474,33 @@ export default function App() {
     setConfirmState(null);
   }, [isAdmin]);
 
-  // 🔥 改动点 4: 重构登出逻辑，撕毁本地凭证
   async function handleSignOut() {
-    // 彻底清除前端身份记录
     localStorage.removeItem('lumina_user');
     setAuthUser(null);
     setAuthModalOpen(false);
-    
-    // 清除可能存在的第三方遗留存储状态，但不依赖它
     if (supabase) {
       try {
         await supabase.auth.signOut();
       } catch(e) {}
     }
-    
-    // 强制刷新页面重置所有 UI
     window.location.reload();
   }
 
   async function handleSavePortfolio({ id, title, description, coverImageId, images, narrative }) {
-    if (!isAdmin) {
-      return;
-    }
-
+    if (!isAdmin) return;
     let createdPortfolioId = null;
-
     setPortfolios((current) => {
       if (id) {
         return current.map((portfolio) => {
-          if (portfolio.id !== id) {
-            return portfolio;
-          }
-
-          const mergedImages = [
-            ...portfolio.images,
-            ...(Array.isArray(images) ? images : []),
-          ];
-
+          if (portfolio.id !== id) return portfolio;
+          const mergedImages = [...portfolio.images, ...(Array.isArray(images) ? images : [])];
           const nextImages = mergedImages.map((image) => ({
             ...image,
             isCover: coverImageId ? image.id === coverImageId : image.isCover,
           }));
-
           if (nextImages.length > 0 && !nextImages.some((image) => image.isCover)) {
             nextImages[0].isCover = true;
           }
-
           return {
             ...portfolio,
             title: toLocalizedField(title, fallbackPortfolioContent.title),
@@ -1522,128 +1509,84 @@ export default function App() {
           };
         });
       }
-
       const nextId = Date.now();
       createdPortfolioId = nextId;
       const nextImages = (Array.isArray(images) ? images : []).map((image) => ({
         ...image,
         isCover: coverImageId ? image.id === coverImageId : image.isCover,
       }));
-
       if (nextImages.length > 0 && !nextImages.some((image) => image.isCover)) {
         nextImages[0].isCover = true;
       }
-
       const nextPortfolio = toPortfolioShape({
-        id: nextId,
-        narrative,
+        id: nextId, narrative,
         title: toLocalizedField(title, fallbackPortfolioContent.title),
         description: toLocalizedField(description, fallbackPortfolioContent.description),
         images: nextImages,
       });
-
       return [nextPortfolio, ...current];
     });
-
     setEditorState({ open: false, portfolio: null });
-
-    if (createdPortfolioId !== null) {
-      setSelectedPortfolioId(createdPortfolioId);
-    }
+    if (createdPortfolioId !== null) setSelectedPortfolioId(createdPortfolioId);
   }
 
   async function handleDeletePortfolio(id) {
-    if (!isAdmin) {
-      return;
-    }
-
+    if (!isAdmin) return;
     const targetPortfolio = portfolios.find((portfolio) => portfolio.id === id);
     const imagePaths = (targetPortfolio?.images || []).map((image) => image.path).filter(Boolean);
-
     try {
       await deleteImagesFromCloud(imagePaths);
     } catch (error) {
       console.error("Failed to delete portfolio images from cloud storage.", error);
       return;
     }
-
     setPortfolios((current) => current.filter((portfolio) => portfolio.id !== id));
     setConfirmState(null);
-    if (selectedPortfolioId === id) {
-      setSelectedPortfolioId(null);
-    }
+    if (selectedPortfolioId === id) setSelectedPortfolioId(null);
   }
 
   function handleUploadImages(images) {
-    if (!isAdmin || !selectedPortfolio) {
-      return;
-    }
-
+    if (!isAdmin || !selectedPortfolio) return;
     setPortfolios((current) =>
       current.map((portfolio) => {
-        if (portfolio.id !== selectedPortfolio.id) {
-          return portfolio;
-        }
-
+        if (portfolio.id !== selectedPortfolio.id) return portfolio;
         const shouldSetCover = portfolio.images.length === 0;
         const nextImages = images.map((image, index) => ({
           ...image,
           isCover: shouldSetCover && index === 0,
         }));
-
-        return {
-          ...portfolio,
-          images: [...portfolio.images, ...nextImages],
-        };
+        return { ...portfolio, images: [...portfolio.images, ...nextImages] };
       }),
     );
   }
 
   function handleSetCover(imageId) {
-    if (!isAdmin || !selectedPortfolio) {
-      return;
-    }
-
+    if (!isAdmin || !selectedPortfolio) return;
     setPortfolios((current) =>
       current.map((portfolio) =>
         portfolio.id === selectedPortfolio.id
-          ? {
-              ...portfolio,
-              images: portfolio.images.map((image) => ({
-                ...image,
-                isCover: image.id === imageId,
-              })),
-            }
+          ? { ...portfolio, images: portfolio.images.map((image) => ({ ...image, isCover: image.id === imageId })) }
           : portfolio,
       ),
     );
   }
 
   async function handleDeleteImage(imageId) {
-    if (!isAdmin || !selectedPortfolio) {
-      return;
-    }
-
+    if (!isAdmin || !selectedPortfolio) return;
     const targetImage = selectedPortfolio.images.find((image) => image.id === imageId);
-
     try {
       await deleteImagesFromCloud([targetImage?.path].filter(Boolean));
     } catch (error) {
       console.error("Failed to delete portfolio image from cloud storage.", error);
       return;
     }
-
     setPortfolios((current) =>
       current.map((portfolio) => {
-        if (portfolio.id !== selectedPortfolio.id) {
-          return portfolio;
-        }
-
+        if (portfolio.id !== selectedPortfolio.id) return portfolio;
         const nextImages = portfolio.images.filter((image) => image.id !== imageId);
         if (nextImages.length > 0 && !nextImages.some((image) => image.isCover)) {
           nextImages[0].isCover = true;
         }
-
         return { ...portfolio, images: nextImages };
       }),
     );
@@ -1651,10 +1594,7 @@ export default function App() {
   }
 
   function openCreatePortfolio() {
-    if (!isAdmin) {
-      return;
-    }
-
+    if (!isAdmin) return;
     setConfirmState(null);
     setSelectedPortfolioId(null);
     setEditorState({ open: true, portfolio: null });
@@ -1662,28 +1602,17 @@ export default function App() {
 
   function handleBackupFileSelect(file) {
     setBackupFile(file);
-    setBackupStatus(
-      file
-        ? { tone: "default", message: copy.admin.backupFileReady }
-        : null,
-    );
+    setBackupStatus(file ? { tone: "default", message: copy.admin.backupFileReady } : null);
   }
 
   function handleExportBackup() {
-    if (!isAdmin || typeof window === "undefined") {
-      return;
-    }
-
+    if (!isAdmin || typeof window === "undefined") return;
     const payload = createBackupPayload({ portfolios, profile, locale });
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const downloadUrl = window.URL.createObjectURL(blob);
     const downloadLink = document.createElement("a");
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-
     downloadLink.href = downloadUrl;
-    downloadLink.download = `eldon-studio-backup-${timestamp}.json`;
+    downloadLink.download = `eldon-studio-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
     document.body.appendChild(downloadLink);
     downloadLink.click();
     downloadLink.remove();
@@ -1692,20 +1621,14 @@ export default function App() {
   }
 
   async function handleRestoreBackup() {
-    if (!isAdmin) {
-      return;
-    }
-
+    if (!isAdmin) return;
     if (!backupFile) {
       setBackupStatus({ tone: "error", message: copy.admin.backupSelectFirst });
       return;
     }
-
     try {
       const raw = await backupFile.text();
-      const parsed = JSON.parse(raw);
-      const nextState = normalizeBackupPayload(parsed);
-
+      const nextState = normalizeBackupPayload(JSON.parse(raw));
       setConfirmState({
         title: copy.admin.backupReplaceTitle,
         description: copy.admin.backupReplaceText,
@@ -1724,10 +1647,7 @@ export default function App() {
     } catch (error) {
       setBackupStatus({
         tone: "error",
-        message:
-          error instanceof SyntaxError || error?.message === "invalid-backup"
-            ? copy.admin.backupInvalid
-            : copy.admin.backupImportFailed,
+        message: error instanceof SyntaxError || error?.message === "invalid-backup" ? copy.admin.backupInvalid : copy.admin.backupImportFailed,
       });
     }
   }
@@ -1739,67 +1659,31 @@ export default function App() {
   };
 
   return (
-    <div
-      className={`min-h-screen bg-[color:var(--site-bg)] text-[color:var(--site-text)] ${locale === "zh" ? "lang-zh" : "lang-en"}`}
-      lang={locale === "zh" ? "zh-CN" : "en"}
-    >
+    <div className={`min-h-screen bg-[color:var(--site-bg)] text-[color:var(--site-text)] ${locale === "zh" ? "lang-zh" : "lang-en"}`} lang={locale === "zh" ? "zh-CN" : "en"}>
       {selectedPortfolio ? (
-        <DetailUtilityBar
-          locale={locale}
-          onToggleLocale={setLocale}
-          copy={copy}
-          userEmail={userEmail}
-          isAdmin={isAdmin}
-          onOpenAuth={() => setAuthModalOpen(true)}
-          onSignOut={handleSignOut}
-        />
+        <DetailUtilityBar locale={locale} onToggleLocale={setLocale} copy={copy} userEmail={userEmail} isAdmin={isAdmin} onOpenAuth={() => setAuthModalOpen(true)} onSignOut={handleSignOut} />
       ) : view === "client-portal" || view === "admin" ? null : (
         <ImmersiveNavbar
-          profile={profile}
-          copy={copy}
-          locale={locale}
-          isSolid={isPastHero}
-          isAdmin={isAdmin}
-          userEmail={userEmail}
-          onToggleLocale={setLocale}
-          onOpenAuth={() => setAuthModalOpen(true)}
-          onSignOut={handleSignOut}
-          isLabView={view === "lab"}
-          isBookingView={view === "booking"}
+          profile={profile} copy={copy} locale={locale} isSolid={isPastHero} isAdmin={isAdmin} userEmail={userEmail}
+          onToggleLocale={setLocale} onOpenAuth={() => setAuthModalOpen(true)} onSignOut={handleSignOut}
+          isLabView={view === "lab"} isBookingView={view === "booking"}
           onOpenLab={onOpenLab}
-          onOpenBooking={() => {
-            setSelectedPortfolioId(null);
-            setView("booking");
-            window.scrollTo(0, 0);
-          }}
-          onOpenAdmin={() => {
-            setSelectedPortfolioId(null);
-            setView("admin");
-            window.scrollTo(0, 0);
-          }}
+          onOpenBooking={() => { setSelectedPortfolioId(null); setView("booking"); window.scrollTo(0, 0); }}
+          onOpenAdmin={() => { setSelectedPortfolioId(null); setView("admin"); window.scrollTo(0, 0); }}
           onGoHome={() => setView("home")}
         />
       )}
 
       {view === "client-portal" ? (
-        <React.Suspense fallback={<div className="h-screen bg-[#131313]" />}>
-          <ClientPortalPage slug={clientSlug} />
-        </React.Suspense>
+        <React.Suspense fallback={<div className="h-screen bg-[#131313]" />}><ClientPortalPage slug={clientSlug} /></React.Suspense>
       ) : view === "booking" ? (
         <>
-          <div className="min-h-screen pt-24">
-            <BookingProjectsSection copy={copy} locale={locale} luminaUrl={LUMINA_URL} isAdmin={isAdmin} />
-          </div>
+          <div className="min-h-screen pt-24"><BookingProjectsSection copy={copy} locale={locale} luminaUrl={LUMINA_URL} isAdmin={isAdmin} /></div>
           <Footer profile={profile} copy={copy} locale={locale} luminaUrl={LUMINA_URL} />
         </>
       ) : view === "lumina-report" ? (
         <React.Suspense fallback={<div className="h-screen bg-black" />}>
-          <LuminaReport
-            imageData={luminaReportData?.imageData}
-            locale={locale}
-            onBook={() => setView("booking")}
-            onGoHome={() => setView("home")}
-          />
+          <LuminaReport imageData={luminaReportData?.imageData} locale={locale} onBook={() => setView("booking")} onGoHome={() => setView("home")} />
         </React.Suspense>
       ) : view === "lab" || view === "client" || view === "admin" || selectedPortfolio ? (
         <React.Suspense fallback={<div className="h-screen bg-[#131313]" />}>
@@ -1809,127 +1693,58 @@ export default function App() {
             <ClientPortalPage slug={clientSlug} onGoHome={() => setView("home")} />
           ) : view === "admin" ? (
             <AdminDashboardPage
-              isAdmin={isAdmin}
-              onGoHome={() => setView("home")}
-              copy={copy}
-              locale={locale}
-              backupFileName={backupFile?.name || ""}
-              backupStatus={backupStatus}
-              onExport={handleExportBackup}
-              onSelectFile={handleBackupFileSelect}
-              onRestore={handleRestoreBackup}
+              isAdmin={isAdmin} onGoHome={() => setView("home")} copy={copy} locale={locale}
+              backupFileName={backupFile?.name || ""} backupStatus={backupStatus}
+              onExport={handleExportBackup} onSelectFile={handleBackupFileSelect} onRestore={handleRestoreBackup}
+              onStartUpload={(orderNo) => setUploadingOrderNo(orderNo)} // 🔥 注入传片回调
             />
           ) : (
             <DetailView
-              portfolio={selectedPortfolio}
-              isAdmin={isAdmin}
-              copy={copy}
-              locale={locale}
+              portfolio={selectedPortfolio} isAdmin={isAdmin} copy={copy} locale={locale}
               onBack={() => setSelectedPortfolioId(null)}
               onEditPortfolio={() => setEditorState({ open: true, portfolio: selectedPortfolio })}
-              onRequestDeletePortfolio={() =>
-                setConfirmState({
-                  title: copy.confirm.deletePortfolioTitle,
-                  description: copy.confirm.deleteDetailPortfolioText,
-                  onConfirm: () => handleDeletePortfolio(selectedPortfolio.id),
-                })
-              }
-              onUploadImages={handleUploadImages}
-              onSetCover={handleSetCover}
-              onDeleteImage={(imageId) =>
-                setConfirmState({
-                  title: copy.confirm.deleteImageTitle,
-                  description: copy.confirm.deleteImageText,
-                  onConfirm: () => handleDeleteImage(imageId),
-                })
-              }
+              onRequestDeletePortfolio={() => setConfirmState({ title: copy.confirm.deletePortfolioTitle, description: copy.confirm.deleteDetailPortfolioText, onConfirm: () => handleDeletePortfolio(selectedPortfolio.id) })}
+              onUploadImages={handleUploadImages} onSetCover={handleSetCover}
+              onDeleteImage={(imageId) => setConfirmState({ title: copy.confirm.deleteImageTitle, description: copy.confirm.deleteImageText, onConfirm: () => handleDeleteImage(imageId) })}
             />
           )}
         </React.Suspense>
       ) : (
         <>
           <HeroCover portfolios={portfolios} profile={profile} copy={copy} locale={locale} />
-          <HeroSection
-            profile={profile}
-            isAdmin={isAdmin}
-            onEditProfile={() => {
-              if (isAdmin) {
-                setProfileEditorOpen(true);
-              }
-            }}
-            copy={copy}
-            locale={locale}
-            practiceRows={practiceRows}
-            manifestoItems={manifestoData}
-            luminaUrl={LUMINA_URL}
-          />
+          <HeroSection profile={profile} isAdmin={isAdmin} onEditProfile={() => isAdmin && setProfileEditorOpen(true)} copy={copy} locale={locale} practiceRows={practiceRows} manifestoItems={manifestoData} luminaUrl={LUMINA_URL} />
           <PracticeSection copy={copy} locale={locale} />
           <StorySection portfolios={portfolios} copy={copy} locale={locale} onOpenLab={onOpenLab} />
           <PortfolioMasonry
-            portfolios={portfolios}
-            isAdmin={isAdmin}
-            copy={copy}
-            locale={locale}
-            onAdd={openCreatePortfolio}
-            onOpen={setSelectedPortfolioId}
+            portfolios={portfolios} isAdmin={isAdmin} copy={copy} locale={locale}
+            onAdd={openCreatePortfolio} onOpen={setSelectedPortfolioId}
             onEdit={(portfolio) => setEditorState({ open: true, portfolio })}
-            onDelete={(id) =>
-              setConfirmState({
-                title: copy.confirm.deletePortfolioTitle,
-                description: copy.confirm.deletePortfolioText,
-                onConfirm: () => handleDeletePortfolio(id),
-              })
-            }
+            onDelete={(id) => setConfirmState({ title: copy.confirm.deletePortfolioTitle, description: copy.confirm.deletePortfolioText, onConfirm: () => handleDeletePortfolio(id) })}
           />
-          <LuminaLab
-            locale={locale}
-            onSetView={(v, data) => {
-              setLuminaReportData(data);
-              setView(v);
-            }}
-          />
+          <LuminaLab locale={locale} onSetView={(v, data) => { setLuminaReportData(data); setView(v); }} />
           <Footer profile={profile} copy={copy} locale={locale} luminaUrl={LUMINA_URL} />
         </>
       )}
 
-      {editorState.open ? (
-        <PortfolioEditorModal
-          portfolio={editorState.portfolio}
-          copy={copy}
-          fallbackPortfolioContent={fallbackPortfolioContent}
-          onClose={() => setEditorState({ open: false, portfolio: null })}
-          onSave={handleSavePortfolio}
-        />
-      ) : null}
-
-      {profileEditorOpen ? (
-        <ProfileEditorModal
-          profile={profile}
-          copy={copy}
-          locale={locale}
-          initialProfile={initialProfile}
-          onClose={() => setProfileEditorOpen(false)}
-          onSave={async (nextProfile) => {
-            if (!isAdmin) {
-              return;
-            }
-            setProfile(toProfileShape(nextProfile));
-            setProfileEditorOpen(false);
-          }}
-        />
-      ) : null}
-
+      {editorState.open && <PortfolioEditorModal portfolio={editorState.portfolio} copy={copy} fallbackPortfolioContent={fallbackPortfolioContent} onClose={() => setEditorState({ open: false, portfolio: null })} onSave={handleSavePortfolio} />}
+      {profileEditorOpen && <ProfileEditorModal profile={profile} copy={copy} locale={locale} initialProfile={initialProfile} onClose={() => setProfileEditorOpen(false)} onSave={async (nextProfile) => { if (!isAdmin) return; setProfile(toProfileShape(nextProfile)); setProfileEditorOpen(false); }} />}
       <AuthModal copy={copy} isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      {confirmState && <ConfirmDialog title={confirmState.title} description={confirmState.description} copy={copy} onCancel={() => setConfirmState(null)} onConfirm={confirmState.onConfirm} />}
 
-      {confirmState ? (
-        <ConfirmDialog
-          title={confirmState.title}
-          description={confirmState.description}
-          copy={copy}
-          onCancel={() => setConfirmState(null)}
-          onConfirm={confirmState.onConfirm}
-        />
-      ) : null}
+      {/* 🔥 新增：Lumina 传片中心 */}
+      <AnimatePresence>
+        {uploadingOrderNo && (
+          <LuminaUploadCenter 
+            orderNo={uploadingOrderNo} 
+            onCancel={() => setUploadingOrderNo(null)}
+            onComplete={() => {
+              setUploadingOrderNo(null);
+              // 注意：此处若需要自动刷新 AdminDashboardPage 的订单列表，
+              // 可以在该页面内部通过 WebSocket 或重新挂载来触发刷新。
+            }} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

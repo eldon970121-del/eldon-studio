@@ -1,151 +1,291 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import Uppy from "@uppy/core";
+import { Dashboard } from "@uppy/dashboard";
+import XHRUpload from "@uppy/xhr-upload";
+import "@uppy/core/dist/style.min.css";
+import "@uppy/dashboard/dist/style.min.css";
 
-// ==========================================
-// 🌟 核心植入：Lumina 交付中心 (查看客户选片 & 上传精修)
-// ==========================================
-export function AdminUploadPanel() {
-  const [orders, setOrders] = useState([]);
-  const [selectedOrderId, setSelectedOrderId] = useState('');
-  const [assets, setAssets] = useState([]);
-  const [isDelivering, setIsDelivering] = useState(false);
+// ── 环境常量 ─────────────────────────────────────────
+const API_BASE = import.meta.env.VITE_LUMINA_API || 'https://lumina-server-production.up.railway.app';
+const getToken = () => localStorage.getItem('lumina_token') || '';
 
-  // 1. 获取需要“精修交付”的订单 (状态为 选片中 或 精修中)
-  useEffect(() => {
-    const fetchTargetOrders = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_LUMINA_API_URL}/admin/orders`);
-        const data = await res.json();
-        // 筛选出等待主理人处理的订单
-        const targetOrders = data.filter(o => o.status === 'SELECTING' || o.status === 'RETOUCHING');
-        setOrders(targetOrders);
-        if (targetOrders.length > 0) setSelectedOrderId(targetOrders[0].order_id);
-      } catch (err) {
-        console.error("获取订单失败", err);
-      }
-    };
-    fetchTargetOrders();
-  }, []);
-
-  // 2. 当选中订单时，拉取该订单的所有照片，看看客户选了哪些
-  useEffect(() => {
-    if (!selectedOrderId) {
-      setAssets([]);
-      return;
-    }
-    const fetchAssets = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_LUMINA_API_URL}/assets/${selectedOrderId}`);
-        if (res.ok) {
-          setAssets(await res.json());
-        }
-      } catch (err) {
-        console.error("获取资产失败", err);
-      }
-    };
-    fetchAssets();
-  }, [selectedOrderId]);
-
-  // 客户标红心的照片
-  const selectedAssets = assets.filter(a => a.is_selected);
-
-  // 3. 模拟一键交付精修图
-  const handleFinalDelivery = async () => {
-    if (!selectedOrderId) return;
-    setIsDelivering(true);
-    
-    try {
-      // 在真实场景中，这里是你批量上传精修图的逻辑
-      // 现在我们直接将订单状态翻转为“已交付”
-      const res = await fetch(`${import.meta.env.VITE_LUMINA_API_URL}/admin/orders/${selectedOrderId}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'DELIVERED' })
-      });
-
-      if (res.ok) {
-        alert("✨ 精修资产已成功交付！小程序端将解锁成片下载。");
-        // 从列表中移除已交付的订单
-        setOrders(orders.filter(o => o.order_id !== selectedOrderId));
-        setSelectedOrderId('');
-      }
-    } catch (err) {
-      alert("交付失败，请检查网络。");
-    } finally {
-      setIsDelivering(false);
-    }
+// ── 同步状态条 ────────────────────────────────────────
+function SyncBar({ status }) {
+  if (!status) return null;
+  const map = {
+    syncing: { color: 'text-yellow-500/80', dot: 'bg-yellow-500', msg: '正在同步资产至 Lumina 引擎...' },
+    done:    { color: 'text-green-400/80',  dot: 'bg-green-400',  msg: '✓ 资产已写入 Lumina 引擎' },
+    error:   { color: 'text-red-400/70',    dot: 'bg-red-500',    msg: '⚠ 同步失败，请检查 Railway 服务与 Token' },
   };
+  const s = map[status];
+  return (
+    <div className={`mt-3 flex items-center gap-2 text-xs tracking-wide ${s.color} ${status === 'syncing' ? 'animate-pulse' : ''}`}>
+      <span className={`inline-block h-1.5 w-1.5 rounded-full ${s.dot}`} />
+      {s.msg}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// 可复用单轨上传模块
+// ══════════════════════════════════════════════════════
+function UploadTrack({ order, assetType, label, sublabel, borderClass, onSyncDone }) {
+  const [syncStatus, setSyncStatus] = useState(null);
+  const uppyRef      = useRef(null);
+  const dashboardRef = useRef(null);
+
+  useEffect(() => {
+    if (!order || !dashboardRef.current) return;
+    if (uppyRef.current) { uppyRef.current.destroy(); uppyRef.current = null; }
+
+    const orderNo = order.order_no || String(order.id);
+
+    const uppy = new Uppy({
+      id:           `lumina-${assetType}`,
+      autoProceed:  false,
+      allowMultipleUploadBatches: true,
+      meta:         { order_no: orderNo, asset_type: assetType },
+      restrictions: { allowedFileTypes: ['image/*'] },
+    });
+
+    uppy.use(XHRUpload, {
+      endpoint: `${API_BASE}/api/orders/${orderNo}/assets/upload`,
+      method:   'POST',
+      formData: true,
+      fieldName: 'file',
+      headers:  () => ({
+        Authorization: `Bearer ${getToken()}`,
+        'x-asset-type': assetType,
+      }),
+      getResponseData: (text) => { try { return JSON.parse(text); } catch { return {}; } },
+    });
+
+    uppy.use(Dashboard, {
+      target:  dashboardRef.current,
+      inline:  true,
+      theme:   'dark',
+      showProgressDetails: true,
+      proudlyDisplayPoweredByUppy: false,
+      note:    `${label} — ${order.order_no || `#${order.id}`}`,
+      width:   '100%',
+      height:  340,
+    });
+
+    uppy.on('complete', async (result) => {
+      if (!result.successful?.length) return;
+      setSyncStatus('syncing');
+      try {
+        // Railway 上传接口直接返回资产记录，无需二次 batch-assets 调用
+        const failed = result.failed?.length ?? 0;
+        if (failed > 0) throw new Error(`${failed} 个文件上传失败`);
+        setSyncStatus('done');
+        onSyncDone?.();
+      } catch (err) {
+        console.error('Upload failed:', err);
+        setSyncStatus('error');
+      }
+    });
+
+    uppyRef.current = uppy;
+    setSyncStatus(null);
+    return () => { uppy.destroy(); uppyRef.current = null; };
+  }, [order, assetType, label, onSyncDone]);
 
   return (
-    <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05)_0%,rgba(255,255,255,0.025)_100%)] p-6 shadow-soft sm:p-8 mt-8 animate-fade-in">
-      <header className="border-b border-white/10 pb-4 mb-6">
-        <h2 className="text-2xl font-serif text-white tracking-widest">最终交付中心</h2>
-        <p className="text-[10px] text-white/50 mt-2 tracking-[0.2em] uppercase">Final Delivery & Assets</p>
-      </header>
+    <div className={`flex flex-col gap-3 rounded-2xl border p-6 ${borderClass}`}>
+      <div className="flex items-center gap-3">
+        <div>
+          <p className="text-sm font-medium text-white tracking-wide">{label}</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/30">{sublabel}</p>
+        </div>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-        
-        {/* 左侧控制列 */}
-        <div className="md:col-span-1 space-y-6">
-          <div className="space-y-3">
-            <label className="block text-[10px] text-white/50 uppercase">选择待交付订单</label>
-            <select 
-              value={selectedOrderId} 
-              onChange={(e) => setSelectedOrderId(e.target.value)}
-              className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#d4af37]"
+      {order ? (
+        <>
+          <div ref={dashboardRef} className="overflow-hidden rounded-xl" />
+          <SyncBar status={syncStatus} />
+        </>
+      ) : (
+        <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-white/10">
+          <p className="text-xs uppercase tracking-widest text-white/20">请先选择订单</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// 主组件：双轨交付中心
+// ══════════════════════════════════════════════════════
+export function AdminUploadPanel() {
+  const [orders, setOrders]         = useState([]);
+  const [selectedOrder, setSelected] = useState(null);
+  const [assets, setAssets]         = useState([]);
+  const [finalSynced, setFinalSynced] = useState(false);
+  const [delivering, setDelivering] = useState(false);
+  const [delivered, setDelivered]   = useState(false);
+
+  // 拉取订单列表
+  useEffect(() => {
+    (async () => {
+      try {
+        const res  = await fetch(`${API_BASE}/api/admin/orders`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        const data = await res.json();
+        const list = (data.orders || []).filter(o =>
+          ['DEPOSIT_PAID', 'SELECTING', 'FINAL_RETOUCH', 'pending'].includes(o.status)
+        );
+        setOrders(list);
+        if (list.length > 0) setSelected(list[0]);
+      } catch {}
+    })();
+  }, []);
+
+  // 拉取客户已选底片
+  useEffect(() => {
+    if (!selectedOrder) { setAssets([]); return; }
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/assets/${selectedOrder.id}?type=raw`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        if (res.ok) setAssets((await res.json()).assets || []);
+      } catch { setAssets([]); }
+    })();
+    setFinalSynced(false);
+    setDelivered(false);
+  }, [selectedOrder]);
+
+  // 一键交付
+  async function handleDeliver() {
+    if (!selectedOrder || delivering) return;
+    setDelivering(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/orders/${selectedOrder.id}/status`, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ status: 'DELIVERED' }),
+      });
+      if (!res.ok) throw new Error();
+      setDelivered(true);
+      setOrders(prev => prev.filter(o => o.id !== selectedOrder.id));
+      setSelected(null);
+    } catch { alert('交付失败，请重试'); }
+    finally { setDelivering(false); }
+  }
+
+  const selectedAssets = assets.filter(a => a.is_selected);
+
+  return (
+    <div className="relative bg-[#0a0a0a]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-8 shadow-[0_8px_32px_0_rgba(0,0,0,0.8)] hover:border-yellow-600/30 transition-all duration-500 mt-8 w-full">
+      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-2xl pointer-events-none" />
+
+      <div className="relative space-y-8">
+        {/* 头部 */}
+        <header className="flex flex-col gap-4 border-b border-white/10 pb-6 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="font-serif text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-yellow-500 to-yellow-700 tracking-tight text-2xl">
+              双轨交付中心
+            </h2>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/40">
+              Raw Selection · Final Delivery
+            </p>
+          </div>
+
+          <div className="md:w-72">
+            <label className="mb-1.5 block text-[10px] uppercase tracking-[0.2em] text-white/40">选择订单</label>
+            <select
+              value={selectedOrder?.id || ''}
+              onChange={e => {
+                setSelected(orders.find(o => String(o.id) === e.target.value) || null);
+              }}
+              className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg p-2 text-xs text-white/70 outline-none focus:border-yellow-600/40 transition-colors"
             >
-              {orders.length === 0 && <option value="">目前没有待处理订单</option>}
+              {orders.length === 0 && <option value="">暂无待处理订单</option>}
               {orders.map(o => (
-                <option key={o.order_id} value={o.order_id}>
-                  {o.customer_name || '匿名'} ({o.status === 'SELECTING' ? '选片中' : '精修中'})
+                <option key={o.id} value={o.id}>
+                  {o.client_name || '匿名'} · {o.order_no || `#${o.id}`}
                 </option>
               ))}
             </select>
           </div>
+        </header>
 
-          {selectedOrderId && (
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-              <div className="text-[10px] text-white/50 uppercase tracking-wider mb-2">客户选片进度</div>
-              <div className="text-2xl font-light text-[#d4af37]">
-                {selectedAssets.length} <span className="text-sm text-white/40">/ {assets.length}</span>
-              </div>
-            </div>
-          )}
+        {/* 交付成功提示 */}
+        {delivered && (
+          <div className="rounded-xl border border-green-500/20 bg-green-500/5 px-6 py-4 text-sm text-green-400 tracking-wide">
+            ✓ 订单已标记为 DELIVERED，客户可在小程序查看精修成片。
+          </div>
+        )}
 
-          <button 
-            onClick={handleFinalDelivery}
-            disabled={isDelivering || !selectedOrderId}
-            className="w-full rounded-full bg-white px-4 py-3 text-xs font-semibold text-black transition hover:bg-white/80 disabled:opacity-50"
-          >
-            {isDelivering ? '打包交付中...' : '上传精修图并交付'}
-          </button>
+        {/* 双轨上传区 */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* 左：粗修区 */}
+          <UploadTrack
+            order={selectedOrder}
+            assetType="raw"
+            label="上传粗修图"
+            sublabel="Upload RAWs · 客户选片阶段"
+            borderClass="border-white/10"
+          />
+
+          {/* 右：精修区（金色高亮） */}
+          <UploadTrack
+            order={selectedOrder}
+            assetType="final"
+            label="上传精修成片"
+            sublabel="Upload Final Retouches · 专属交付区"
+            borderClass="border-yellow-600/30 shadow-[0_0_40px_0_rgba(212,175,55,0.06)]"
+            onSyncDone={() => setFinalSynced(true)}
+          />
         </div>
 
-        {/* 右侧客户选片结果展示区 */}
-        <div className="md:col-span-3">
-          <h3 className="text-sm font-serif text-white tracking-wide mb-4">客户已选定底片 (需精修)</h3>
-          
+        {/* 一键交付按钮 */}
+        {finalSynced && !delivered && (
+          <div className="flex items-center justify-between rounded-xl border border-yellow-600/20 bg-yellow-600/5 px-6 py-4">
+            <div>
+              <p className="text-sm text-yellow-200 font-medium tracking-wide">精修成片已就绪</p>
+              <p className="text-[10px] text-yellow-600/60 uppercase tracking-widest mt-0.5">点击交付，通知客户查看成片</p>
+            </div>
+            <button
+              onClick={handleDeliver}
+              disabled={delivering}
+              className="rounded-full border border-yellow-600/60 bg-yellow-600 px-8 py-2.5 text-[10px] font-bold uppercase tracking-[0.25em] text-black transition hover:bg-yellow-400 disabled:opacity-50"
+            >
+              {delivering ? '交付中...' : '一键交付 →'}
+            </button>
+          </div>
+        )}
+
+        {/* 客户选片结果 */}
+        <div>
+          <h3 className="mb-4 text-[10px] uppercase tracking-[0.2em] text-white/40">
+            客户已选底片
+            <span className="ml-2 rounded-full border border-yellow-600/20 bg-yellow-600/10 px-2 py-0.5 text-yellow-600">
+              {selectedAssets.length} / {assets.length}
+            </span>
+          </h3>
+
           {assets.length === 0 ? (
-            <div className="border border-white/10 border-dashed rounded-2xl p-12 text-center text-white/30 text-sm">
-              请先在左侧选择一个订单
+            <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-xs text-white/20">
+              该订单暂无粗修资产记录
             </div>
           ) : selectedAssets.length === 0 ? (
-            <div className="border border-white/10 border-dashed rounded-2xl p-12 text-center text-[#d4af37]/60 text-sm">
-              客户尚未选出心仪的照片，催一下吧～
+            <div className="rounded-2xl border border-dashed border-yellow-600/10 p-8 text-center text-xs text-yellow-600/40">
+              客户尚未完成选片
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 custom-scrollbar max-h-[500px] overflow-y-auto pr-2">
-              {selectedAssets.map((asset, idx) => (
-                <div key={asset.asset_id} className="relative aspect-[3/4] bg-[#111] rounded-xl overflow-hidden group border border-white/10">
-                  <img src={asset.watermark_url} alt="selected" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                  <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-[#d4af37] text-xs px-2 py-1 rounded border border-[#d4af37]/30">
-                    需精修 #{idx + 1}
-                  </div>
+            <div className="grid grid-cols-4 gap-3 max-h-60 overflow-y-auto pr-1 sm:grid-cols-6">
+              {selectedAssets.map((asset, i) => (
+                <div key={asset.id || i} className="group relative aspect-square overflow-hidden rounded-lg border border-white/5 bg-white/5">
+                  <img src={asset.url_thumb || asset.url} alt="" className="h-full w-full object-cover opacity-70 transition group-hover:opacity-100" />
+                  <div className="absolute right-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[8px] text-yellow-500 backdrop-blur">#{i + 1}</div>
                 </div>
               ))}
             </div>
           )}
         </div>
-
       </div>
     </div>
   );

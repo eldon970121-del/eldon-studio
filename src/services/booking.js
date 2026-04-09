@@ -1,4 +1,4 @@
-const LUMINA_API_URL = import.meta.env.VITE_LUMINA_API_URL || "http://127.0.0.1:8787";
+const LUMINA_API_URL = import.meta.env.VITE_LUMINA_API || "https://lumina-server-production.up.railway.app";
 
 const SHOOT_TYPE_META = {
   portrait: {

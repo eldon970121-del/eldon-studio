@@ -5,6 +5,7 @@ import {
   analyzeAestheticImage,
   buildSeriesNarrative,
 } from "../../services/aestheticAnalysis";
+import { AestheticsLab } from "./AestheticsLab";
 
 const GAUGE_CIRCUMFERENCE = 251.2;
 
@@ -94,6 +95,7 @@ function getLabContent(locale, copy) {
         copied: "已复制",
         modeToggleSingle: "单张分析",
         modeToggleSeries: "组图分析",
+        modeToggleDeconstructor: "视觉拆解",
         seriesUploadTitle: "组图系列分析",
         seriesUploadIntro: "一次上传 2–12 张图片，Lumina 将逐帧分析，输出整体风格一致性评分与系列平均情绪共振。",
         seriesDropHint: "拖放图片或点击添加，最多 12 张",
@@ -192,6 +194,7 @@ function getLabContent(locale, copy) {
         copied: "Copied",
         modeToggleSingle: "Single",
         modeToggleSeries: "Series",
+        modeToggleDeconstructor: "Deconstructor",
         seriesUploadTitle: "Series Analysis",
         seriesUploadIntro: "Upload 2–12 frames. Lumina analyzes each and outputs per-frame scores plus an overall style coherence rating.",
         seriesDropHint: "Drag and drop or click to add frames — up to 12",
@@ -569,11 +572,12 @@ export function LuminaLabPage({ copy, locale }) {
         }}
       />
 
-      {(phase === "upload" || phase === "analyzing" || seriesPhase === "upload" || seriesPhase === "analyzing") && (
+      {(phase === "upload" || phase === "analyzing" || seriesPhase === "upload" || seriesPhase === "analyzing" || mode === "deconstructor") && (
         <div className="mb-8 flex gap-2">
           {[
-            { key: "single", label: content.modeToggleSingle },
-            { key: "series", label: content.modeToggleSeries },
+            { key: "single",        label: content.modeToggleSingle },
+            { key: "series",        label: content.modeToggleSeries },
+            { key: "deconstructor", label: content.modeToggleDeconstructor },
           ].map((m) => (
             <button
               key={m.key}
@@ -589,6 +593,16 @@ export function LuminaLabPage({ copy, locale }) {
             </button>
           ))}
         </div>
+      )}
+
+      {mode === "deconstructor" && (
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: "easeOut" }}
+        >
+          <AestheticsLab />
+        </motion.section>
       )}
 
       {mode === "single" && (phase === "upload" || phase === "analyzing") && (

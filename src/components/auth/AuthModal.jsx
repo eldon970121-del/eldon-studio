@@ -33,7 +33,7 @@ export function AuthModal({ copy, isOpen, onClose }) {
 
     try {
       // 1. 获取后端地址 (从环境变量读取，如果没有则使用硬编码兜底)
-      const apiUrl = import.meta.env.VITE_LUMINA_API_URL || 'https://lumina-server-production.up.railway.app';
+      const apiUrl = import.meta.env.VITE_LUMINA_API || 'https://lumina-server-production.up.railway.app';
       
       // 2. 向我们的 Railway 后端发送请求！
       const response = await fetch(`${apiUrl}/api/auth/login`, {
@@ -51,8 +51,11 @@ export function AuthModal({ copy, isOpen, onClose }) {
       const data = await response.json();
 
       if (data.success) {
-        // 🔥 3. 最关键的一步：把后端发回来的包含 admin 权限的用户信息，强行写入前端缓存！
+        // 存储用户信息和 JWT token
         localStorage.setItem('lumina_user', JSON.stringify(data.user));
+        if (data.token) {
+          localStorage.setItem('lumina_token', data.token);
+        }
         
         setStatusMessage(mode === "signIn" ? "身份核验成功！" : "档案建立成功！");
         

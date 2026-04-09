@@ -17,7 +17,7 @@ export const DEFAULT_BOOKING_PROJECTS = [
     },
     description: {
       en: "A controlled portrait commission for fashion labels, creative founders, and campaign portraits that need atmosphere without excess styling noise.",
-      zh: "面向品牌、创意主理人与 campaign 需求的高控制度肖像委托，以情绪、光线与质感为核心，而非堆叠式造型噪音。",
+      zh: "面向品牌、创意摄影师与 campaign 需求的高控制度肖像委托，以情绪、光线与质感为核心，而非堆叠式造型噪音。",
     },
     features: [
       {

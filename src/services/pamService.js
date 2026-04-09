@@ -1,105 +1,121 @@
 /**
  * pamService.js — Client Proofing data layer
- * Backed by Supabase table: proofing_projects
+ * Backed by Railway API: /api/projects
  */
-import { supabase } from "../lib/supabaseClient";
+const API_BASE = import.meta.env.VITE_LUMINA_API || 'https://lumina-server-production.up.railway.app';
+const getToken = () => localStorage.getItem('lumina_token') || '';
+
+function authHeaders() {
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` };
+}
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { ...authHeaders(), ...(options.headers || {}) },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
 
 export async function getProjectBySlug(slug) {
-  const { data, error } = await supabase
-    .from("proofing_projects")
-    .select("id, slug, client_name, status, images, selections, download_url_high, download_url_web, created_at, updated_at")
-    .eq("slug", slug)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data;
+  const data = await apiFetch(`/api/projects/slug/${slug}`);
+  return data.project ?? data ?? null;
 }
 
 export async function verifyPasscode(slug, passcode) {
-  const { data, error } = await supabase
-    .from("proofing_projects")
-    .select("passcode")
-    .eq("slug", slug)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) return false;
-  return data.passcode === passcode;
+  try {
+    const data = await apiFetch(`/api/projects/slug/${slug}/verify`, {
+      method: 'POST',
+      body: JSON.stringify({ passcode }),
+    });
+    return data.valid === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function submitSelection(slug, selectionsData) {
-  const { data, error } = await supabase
-    .from("proofing_projects")
-    .update({ selections: selectionsData, status: "selection_completed" })
-    .eq("slug", slug)
-    .select("id, slug, client_name, status, images, selections, updated_at")
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
+  const data = await apiFetch(`/api/projects/slug/${slug}/selections`, {
+    method: 'PUT',
+    body: JSON.stringify({ selections: selectionsData }),
+  });
+  return data.project ?? data;
 }
 
 export async function createProject(projectData) {
-  const { data, error } = await supabase
-    .from("proofing_projects")
-    .insert({
-      slug: projectData.slug,
-      client_name: projectData.client_name,
-      passcode: projectData.passcode,
-      images: projectData.images ?? [],
-      selections: [],
-      status: "awaiting_selection",
-    })
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
+  const data = await apiFetch('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify(projectData),
+  });
+  return data.project ?? data;
 }
 
 export async function listProjects() {
-  const { data, error } = await supabase
-    .from("proofing_projects")
-    .select("id, slug, client_name, status, created_at, updated_at")
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  const data = await apiFetch('/api/projects');
+  return Array.isArray(data.projects) ? data.projects : Array.isArray(data) ? data : [];
 }
 
 export async function updateProjectStatus(slug, status) {
-  const { data, error } = await supabase
-    .from("proofing_projects")
-    .update({ status })
-    .eq("slug", slug)
-    .select("id, slug, status, updated_at")
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
+  const data = await apiFetch(`/api/projects/slug/${slug}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  });
+  return data.project ?? data;
 }
 
 export async function deleteProject(id) {
-  const { error } = await supabase
-    .from("proofing_projects")
-    .delete()
-    .eq("id", id);
-  if (error) throw new Error(error.message);
+  await apiFetch(`/api/projects/${id}`, { method: 'DELETE' });
 }
 
 export async function deliverProject(slug, { downloadUrlHigh, downloadUrlWeb }) {
-  const { data, error } = await supabase
-    .from("proofing_projects")
-    .update({
-      status: "delivered",
-      download_url_high: downloadUrlHigh ?? null,
-      download_url_web: downloadUrlWeb ?? null,
-    })
-    .eq("slug", slug)
-    .select("id, slug, status, download_url_high, download_url_web, updated_at")
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
+  const data = await apiFetch(`/api/projects/slug/${slug}/deliver`, {
+    method: 'POST',
+    body: JSON.stringify({ download_url_high: downloadUrlHigh, download_url_web: downloadUrlWeb }),
+  });
+  return data.project ?? data;
 }
 
-export const insertImages = async (slug, newImages) => { console.log('Mock insertImages', slug, newImages); return { success: true }; };
-export const togglePaid = async (projectId) => { console.log('Mock togglePaid', projectId); return { success: true }; };
-export const addNote = async (projectId, imageId, note) => { console.log('Mock addNote', projectId, imageId, note); return { success: true }; };
-export const deleteImage = async (projectId, imageId) => { console.log('Mock deleteImage', projectId, imageId); return { success: true }; };
-export const getSelections = async (projectId) => { console.log('Mock getSelections', projectId); return []; };
-export const listImages = async (projectId) => { console.log('Mock listImages', projectId); return []; };
-export const listNotes = async (projectId) => { console.log('Mock listNotes', projectId); return []; };
+export const insertImages = async (slug, newImages) => {
+  const data = await apiFetch(`/api/projects/slug/${slug}/images`, {
+    method: 'POST',
+    body: JSON.stringify({ images: newImages }),
+  });
+  return data;
+};
+
+export const togglePaid = async (projectId) => {
+  const data = await apiFetch(`/api/projects/${projectId}/toggle-paid`, { method: 'POST' });
+  return data;
+};
+
+export const addNote = async (projectId, imageId, note) => {
+  const data = await apiFetch(`/api/projects/${projectId}/images/${imageId}/notes`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  });
+  return data;
+};
+
+export const deleteImage = async (projectId, imageId) => {
+  await apiFetch(`/api/projects/${projectId}/images/${imageId}`, { method: 'DELETE' });
+  return { success: true };
+};
+
+export const getSelections = async (projectId) => {
+  const data = await apiFetch(`/api/projects/${projectId}/selections`);
+  return Array.isArray(data.selections) ? data.selections : [];
+};
+
+export const listImages = async (projectId) => {
+  const data = await apiFetch(`/api/projects/${projectId}/images`);
+  return Array.isArray(data.images) ? data.images : [];
+};
+
+export const listNotes = async (projectId) => {
+  const data = await apiFetch(`/api/projects/${projectId}/notes`);
+  return Array.isArray(data.notes) ? data.notes : [];
+};

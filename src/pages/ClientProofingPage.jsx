@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { submitSelection } from "../services/pamService";
 import { CLIENT_VAULTS } from "./mockClientData";
 
+const LUMINA_API = import.meta.env.VITE_LUMINA_API || 'https://lumina-server-production.up.railway.app';
+
 const aspectRatioMap = {
   portrait: "4 / 5",
   square: "1 / 1",
@@ -9,23 +11,49 @@ const aspectRatioMap = {
 };
 
 function GatekeeperView({ vault, slug, onUnlock }) {
-  const [passcode, setPasscode] = useState("");
+  const [email, setEmail] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [shakeKey, setShakeKey] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   const authKey = `client-proofing-auth:${slug}`;
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!email.trim() || !pin.trim()) return;
+    setLoading(true);
+    setError("");
 
-    if (passcode === vault.passcode) {
-      sessionStorage.setItem(authKey, "true");
-      onUnlock();
-      return;
+    try {
+      const res = await fetch(`${LUMINA_API}/api/auth/client-verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), pin: pin.trim() }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        if (data.token) localStorage.setItem('lumina_client_token', data.token);
+        sessionStorage.setItem(authKey, "true");
+        onUnlock(data);
+        return;
+      }
+
+      // 兜底：若后端尚未实装，降级至 vault passcode 校验
+      if (vault && pin === vault.passcode) {
+        sessionStorage.setItem(authKey, "true");
+        onUnlock({});
+        return;
+      }
+
+      throw new Error(data.message || "Verification failed");
+    } catch (err) {
+      setError(err.message === "Verification failed" ? err.message : "无法连接到 Lumina 引擎，请稍后重试");
+      setShakeKey((v) => v + 1);
+    } finally {
+      setLoading(false);
     }
-
-    setError("Incorrect passcode. Please try again.");
-    setShakeKey((value) => value + 1);
   };
 
   return (
@@ -40,66 +68,63 @@ function GatekeeperView({ vault, slug, onUnlock }) {
             "linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.025) 100%), var(--site-bg-deep)",
         }}
       >
-        <p
-          className="text-[11px] uppercase tracking-[0.42em]"
-          style={{ color: "var(--site-accent)" }}
-        >
+        <p className="text-[11px] uppercase tracking-[0.42em]" style={{ color: "var(--site-accent)" }}>
           Client Vault
         </p>
         <h1 className="font-display mt-4 text-4xl font-semibold sm:text-5xl">
-          {vault.clientName}
+          {vault?.clientName ?? "Private Archive"}
         </h1>
         <p className="mt-4 max-w-lg text-sm leading-7 sm:text-[15px]" style={{ color: "var(--site-muted)" }}>
-          Enter the private proofing passcode to review the gallery and mark your selects for{" "}
-          {vault.projectTitle}.
+          Enter your registered email and the exclusive access PIN to unlock your image archive.
         </p>
 
         <form className="mt-8 grid gap-4" onSubmit={handleSubmit}>
           <label className="field-shell">
-            <span className="field-label">Passcode</span>
+            <span className="field-label">Email</span>
             <input
-              autoComplete="one-time-code"
+              autoComplete="email"
               className="field-input"
-              inputMode="numeric"
-              maxLength={8}
-              onChange={(event) => {
-                setPasscode(event.target.value);
-                if (error) {
-                  setError("");
-                }
-              }}
-              placeholder="Enter passcode"
-              type="password"
-              value={passcode}
+              onChange={(e) => { setEmail(e.target.value); setError(""); }}
+              placeholder="your@email.com"
+              required
+              type="email"
+              value={email}
             />
           </label>
 
-          <div
-            className="rounded-[1.25rem] border px-4 py-3 text-sm"
-            style={{
-              borderColor: "var(--site-border-soft)",
-              backgroundColor: "rgba(255, 255, 255, 0.03)",
-              color: "var(--site-muted)",
-            }}
-          >
-            Private link: <span style={{ color: "var(--site-text)" }}>/client/{slug}</span>
-          </div>
+          <label className="field-shell">
+            <span className="field-label">专属访问码 / Access PIN</span>
+            <input
+              autoComplete="one-time-code"
+              className="field-input tracking-[0.3em]"
+              maxLength={8}
+              onChange={(e) => { setPin(e.target.value.toUpperCase()); setError(""); }}
+              placeholder="XXXXXX"
+              required
+              type="password"
+              value={pin}
+            />
+          </label>
 
           {error ? (
-            <p className="text-sm" style={{ color: "#ffb4b4" }}>
-              {error}
-            </p>
+            <p className="text-sm" style={{ color: "#ffb4b4" }}>{error}</p>
           ) : null}
 
           <button
-            className="micro-button rounded-full px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em]"
+            className="micro-button mt-2 rounded-full px-6 py-3 text-sm font-semibold uppercase tracking-[0.3em] disabled:opacity-50 transition-opacity"
+            disabled={loading}
             style={{
               backgroundColor: "var(--site-accent)",
               color: "var(--site-bg-deep)",
             }}
             type="submit"
           >
-            Unlock Gallery
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+                Verifying...
+              </span>
+            ) : "Unlock Vault →"}
           </button>
         </form>
       </div>
