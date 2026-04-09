@@ -1348,7 +1348,7 @@ export default function App() {
   const userEmail = authUser?.email?.trim() || "";
   
   const isAdmin = Boolean(
-    authUser?.role === 'admin' || 
+    authUser?.role?.toUpperCase() === 'ADMIN' ||
     (userEmail && ADMIN_EMAIL && userEmail.toLowerCase() === ADMIN_EMAIL)
   );
 
