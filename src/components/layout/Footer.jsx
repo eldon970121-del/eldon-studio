@@ -28,9 +28,9 @@ function IconInstagram() {
 
 // ─── Social button with click-to-copy tooltip ─────────────────────────────────
 const SOCIALS = [
-  { id: "douyin",  Icon: IconDouyin,   label: "抖音",  handle: "勿阅星光",    copy: "勿阅星光" },
-  { id: "xhs",     Icon: IconXHS,      label: "小红书", handle: "勿阅星光",   copy: "勿阅星光" },
-  { id: "ig",      Icon: IconInstagram, label: "Instagram", handle: "@eldonstudio", copy: "@eldonstudio" },
+  { id: "douyin",  Icon: IconDouyin,    label: "抖音",      handle: "Eldon_L | 人像摄影📷",          copy: "Eldon_L" },
+  { id: "xhs",     Icon: IconXHS,       label: "小红书",    handle: "Eldon｜城市情绪人像摄影师",      copy: "Eldon｜城市情绪人像摄影师" },
+  { id: "ig",      Icon: IconInstagram, label: "Instagram", handle: "Eldon Leo",                      copy: "Eldon Leo" },
 ];
 
 function SocialButton({ social }) {
