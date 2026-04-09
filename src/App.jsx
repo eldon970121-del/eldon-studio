@@ -519,7 +519,6 @@ const siteCopy = {
       studioPreview: "Studio Preview",
       selectedFrame: "Frame",
       emptyTitle: "Upload work to begin building the archive.",
-      luminaLabCta: "Explore Aesthetic Analysis Lab",
     },
     practice: {
       label: "Approach",
@@ -945,7 +944,6 @@ const siteCopy = {
       studioPreview: "工作室预览",
       selectedFrame: "当前画面",
       emptyTitle: "上传作品后，即可开始构建影像档案。",
-      luminaLabCta: "探索审美分析实验室",
     },
     practice: {
       label: "创作理念",
@@ -1719,7 +1717,7 @@ export default function App() {
           <HeroCover portfolios={portfolios} profile={profile} copy={copy} locale={locale} />
           <HeroSection profile={profile} isAdmin={isAdmin} onEditProfile={() => isAdmin && setProfileEditorOpen(true)} copy={copy} locale={locale} practiceRows={practiceRows} manifestoItems={manifestoData} luminaUrl={LUMINA_URL} />
           <PracticeSection copy={copy} locale={locale} />
-          <StorySection portfolios={portfolios} copy={copy} locale={locale} onOpenLab={onOpenLab} />
+          <StorySection portfolios={portfolios} copy={copy} locale={locale} />
           <PortfolioMasonry
             portfolios={portfolios} isAdmin={isAdmin} copy={copy} locale={locale}
             onAdd={openCreatePortfolio} onOpen={setSelectedPortfolioId}

@@ -2,8 +2,7 @@ import { memo } from "react";
 import { RevealBlock } from "../ui/RevealBlock";
 import { getCoverImage, getLocalizedText } from "../../utils/siteHelpers";
 
-export const StorySection = memo(function StorySection({ portfolios, copy, locale, onOpenLab }) {
-  const luminaLabCta = copy.hero?.luminaLabCta ?? "Explore Aesthetic Analysis Lab";
+export const StorySection = memo(function StorySection({ portfolios, copy, locale }) {
   return (
     <section className="section-space mx-auto grid max-w-7xl gap-10 border-t border-[color:var(--site-border-soft)] px-4 sm:px-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-10">
       <RevealBlock className="lg:sticky lg:top-10 lg:h-fit">
@@ -76,16 +75,6 @@ export const StorySection = memo(function StorySection({ portfolios, copy, local
             </article>
           </RevealBlock>
         ))}
-        <div className="mt-12 flex justify-center">
-          <button
-            type="button"
-            onClick={onOpenLab}
-            className="group inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.04] px-6 py-3 text-[11px] font-medium uppercase tracking-[0.3em] text-white/70 transition duration-300 hover:border-[#48ddbc]/40 hover:bg-[#48ddbc]/[0.06] hover:text-[#48ddbc]"
-          >
-            <span className="flex h-5 w-5 items-center justify-center rounded-full border border-current text-[8px]">↗</span>
-            {luminaLabCta}
-          </button>
-        </div>
       </div>
     </section>
   );

@@ -4,13 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 const CONTENT = {
   en: {
     title: "LUMINA 美学实验室",
-    subtitle: "拖放影像，进入纯净暗房。深度读取视觉气候，拆解光影骨架与情绪叙事。",
+    subtitle: "上传作品，深度解析其电影感基因。多维测算视觉构图、光影深度与情绪叙事张力。",
     dropCta: "拖拽影像至此 — 或点击上传",
     entering: "正在进入暗房...",
   },
   zh: {
     title: "LUMINA 美学实验室",
-    subtitle: "拖放影像，进入纯净暗房。深度读取视觉气候，拆解光影骨架与情绪叙事。",
+    subtitle: "上传作品，深度解析其电影感基因。多维测算视觉构图、光影深度与情绪叙事张力。",
     dropCta: "拖拽影像至此 — 或点击上传",
     entering: "正在进入暗房...",
   },
