@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { IconClose, MagneticButton } from "../ui/siteControls";
 
+// build: 2026-04-09
 export function AuthModal({ copy, isOpen, onClose }) {
   const formId = "auth-modal-form";
   const [mode, setMode] = useState("signIn");
