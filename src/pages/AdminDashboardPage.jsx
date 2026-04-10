@@ -6,7 +6,6 @@ import { StatusBadge } from "../components/pam/StatusBadge";
 import { ProofManagerPage } from "./ProofManagerPage";
 import { deleteProject, listProjects, togglePaid, updateProjectStatus } from "../services/pamService";
 import { AdminLeadsPanel } from "../components/pam/AdminLeadsPanel";
-import { AdminPortfolioPanel } from "../components/admin/AdminPortfolioPanel";
 
 import { AdminBookingsPanel } from "../components/admin/AdminBookingsPanel";
 import { AdminCalendarPanel } from "../components/admin/AdminCalendarPanel";
@@ -19,7 +18,6 @@ const TABS = [
   { key: "bookings",   label: "审批看板" },
   { key: "calendar",   label: "档期管理" },
   { key: "inquiries",  label: "询单管理" },
-  { key: "portfolios", label: "作品集管理" },
   { key: "settings",   label: "系统设置" },
 ];
 
@@ -66,7 +64,6 @@ export function AdminDashboardPage({ isAdmin, onGoHome, copy, locale, backupFile
         {activeTab === "bookings"   && <AdminBookingsPanel />}
         {activeTab === "calendar"   && <AdminCalendarPanel />}
         {activeTab === "inquiries"  && <AdminLeadsPanel />}
-        {activeTab === "portfolios" && <AdminPortfolioPanel />}
         {activeTab === "settings" && (
           <div className="mt-12">
             <div className="rounded-[2rem] border border-white/10 bg-transparent">
