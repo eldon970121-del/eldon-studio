@@ -8,11 +8,16 @@ import { deleteProject, listProjects, togglePaid, updateProjectStatus } from "..
 import { AdminLeadsPanel } from "../components/pam/AdminLeadsPanel";
 import { AdminPortfolioPanel } from "../components/admin/AdminPortfolioPanel";
 
+import { AdminBookingsPanel } from "../components/admin/AdminBookingsPanel";
+import { AdminCalendarPanel } from "../components/admin/AdminCalendarPanel";
+
 const STATUS_OPTIONS = ["draft", "published", "selection_completed", "retouching", "pending_payment", "delivered"];
 const TABS = [
   { key: "projects",   label: "业务与项目" },
   { key: "uploader",   label: "云端传片" },
   { key: "deliver",    label: "交付中心" },
+  { key: "bookings",   label: "审批看板" },
+  { key: "calendar",   label: "档期管理" },
   { key: "inquiries",  label: "询单管理" },
   { key: "portfolios", label: "作品集管理" },
   { key: "settings",   label: "系统设置" },
@@ -58,6 +63,8 @@ export function AdminDashboardPage({ isAdmin, onGoHome, copy, locale, backupFile
         {activeTab === "projects" && <LuminaDashboard onStartUpload={onStartUpload} />}
         {activeTab === "uploader" && <LuminaUploader onStartUpload={onStartUpload} />}
         {activeTab === "deliver" && <AdminUploadPanel projects={projects} />}
+        {activeTab === "bookings"   && <AdminBookingsPanel />}
+        {activeTab === "calendar"   && <AdminCalendarPanel />}
         {activeTab === "inquiries"  && <AdminLeadsPanel />}
         {activeTab === "portfolios" && <AdminPortfolioPanel />}
         {activeTab === "settings" && (
