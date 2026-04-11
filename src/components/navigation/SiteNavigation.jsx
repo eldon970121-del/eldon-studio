@@ -100,6 +100,7 @@ export function ImmersiveNavbar({
   const linkClass = isSolid ? "text-slate-700 hover:text-slate-950" : "text-white/78 hover:text-white";
 
   return (
+    <>
     <div className="fixed inset-x-0 top-0 z-[110] px-4 pt-4 sm:px-6 lg:px-10">
       <div
         className={`mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-[1.8rem] border px-4 py-3 transition duration-500 sm:px-6 ${shellClass}`}
@@ -251,6 +252,6 @@ export function ImmersiveNavbar({
         Commission
       </button>
     ) : null}
-  </div>
+  </>
   );
 }
