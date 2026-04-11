@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Toaster } from "sonner";
 import { AdminDataPanel } from "../components/admin/AdminDataPanel";
 import { AdminUploadPanel } from "../components/pam/AdminUploadPanel";
 import { CreateProjectModal } from "../components/pam/CreateProjectModal";
@@ -6,9 +7,9 @@ import { StatusBadge } from "../components/pam/StatusBadge";
 import { ProofManagerPage } from "./ProofManagerPage";
 import { deleteProject, listProjects, togglePaid, updateProjectStatus } from "../services/pamService";
 import { AdminLeadsPanel } from "../components/pam/AdminLeadsPanel";
-
 import { AdminBookingsPanel } from "../components/admin/AdminBookingsPanel";
 import { AdminCalendarPanel } from "../components/admin/AdminCalendarPanel";
+import { useInquirySocket } from "../hooks/useInquirySocket";
 
 const STATUS_OPTIONS = ["draft", "published", "selection_completed", "retouching", "pending_payment", "delivered"];
 const TABS = [
@@ -37,6 +38,13 @@ export function AdminDashboardPage({ isAdmin, onGoHome, copy, locale, backupFile
   }
 
   useEffect(() => { refreshProjects(); }, []);
+
+  useInquirySocket(isAdmin);
+  useEffect(() => {
+    const h = () => setActiveTab('inquiries');
+    window.addEventListener('lumina:open-inquiries', h);
+    return () => window.removeEventListener('lumina:open-inquiries', h);
+  }, []);
 
   if (managingProject) return <ProofManagerPage project={managingProject} onBack={() => { setManagingProject(null); refreshProjects(); }} />;
   if (!isAdmin) return <div className="fixed inset-0 z-[200] flex min-h-screen flex-col items-center justify-center gap-4 bg-[#131313] px-6 text-center"><p className="text-white/30">权限不足</p><button onClick={onGoHome} className="text-sm text-white/50 transition hover:text-white">← 返回官网</button></div>;
@@ -72,6 +80,7 @@ export function AdminDashboardPage({ isAdmin, onGoHome, copy, locale, backupFile
           </div>
         )}
       </main>
+      <Toaster theme="dark" position="bottom-right" richColors />
     </div>
   );
 }
