@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { getLocalizedText } from "../../utils/siteHelpers";
 
 function getFeaturedCarouselItems(portfolios) {
@@ -20,111 +20,44 @@ function getFeaturedCarouselItems(portfolios) {
 export const HeroCover = memo(function HeroCover({ portfolios, copy, locale }) {
   const featuredItems = useMemo(() => getFeaturedCarouselItems(portfolios), [portfolios]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [orientationBySrc, setOrientationBySrc] = useState({});
+
+  const INTERVAL = 7000;
 
   useEffect(() => {
-    if (featuredItems.length === 0) {
-      setActiveIndex(0);
-      return undefined;
-    }
-
-    if (featuredItems.length <= 1) {
-      setActiveIndex(0);
-      return undefined;
-    }
-
+    if (featuredItems.length <= 1) return undefined;
     const timer = window.setInterval(() => {
       setActiveIndex((current) => (current + 1) % featuredItems.length);
-    }, 6200);
-
+    }, INTERVAL);
     return () => window.clearInterval(timer);
   }, [featuredItems.length]);
 
   const activeItem = featuredItems[activeIndex] || null;
-  const activeOrientation = activeItem ? orientationBySrc[activeItem.src] || "landscape" : "landscape";
-  const isPortraitActive = activeOrientation === "portrait";
-
-  function handleImageMetaLoad(event, src) {
-    const { naturalWidth, naturalHeight } = event.currentTarget;
-    const nextOrientation = naturalHeight > naturalWidth * 1.08 ? "portrait" : "landscape";
-
-    setOrientationBySrc((current) =>
-      current[src] === nextOrientation ? current : { ...current, [src]: nextOrientation },
-    );
-  }
-
-  const prevItem =
-    featuredItems.length > 0
-      ? featuredItems[(activeIndex - 1 + featuredItems.length) % featuredItems.length]
-      : null;
-  const nextItem =
-    featuredItems.length > 0 ? featuredItems[(activeIndex + 1) % featuredItems.length] : null;
 
   return (
-    <section id="top" className="relative min-h-screen bg-[#131313] overflow-hidden">
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,#121319_0%,#0f1014_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(124,156,255,0.18),transparent_24%)]" />
+    <section id="top" className="relative min-h-screen overflow-hidden bg-[#0a0a0a]">
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center pb-36 pt-20">
-        {featuredItems.length > 2 && prevItem ? (
-          <motion.div
-            key={prevItem.id}
-            transition={{ duration: 1.0, ease: "easeInOut" }}
-            className="absolute left-0 top-1/2 z-0 w-[30vw] max-w-[420px] -translate-x-[88%] -translate-y-1/2 overflow-hidden rounded-3xl opacity-20 blur-[2px] scale-90 transition-all duration-1000 ease-in-out"
-          >
-            <img src={prevItem.src} className="object-contain h-full w-full" alt="" />
-          </motion.div>
-        ) : null}
-
-        {featuredItems.length > 2 && nextItem ? (
-          <motion.div
-            key={nextItem.id}
-            transition={{ duration: 1.0, ease: "easeInOut" }}
-            className="absolute right-0 top-1/2 z-0 w-[30vw] max-w-[420px] translate-x-[88%] -translate-y-1/2 overflow-hidden rounded-3xl opacity-20 blur-[2px] scale-90 transition-all duration-1000 ease-in-out"
-          >
-            <img src={nextItem.src} className="object-contain h-full w-full" alt="" />
-          </motion.div>
-        ) : null}
-
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-center px-4 sm:px-6 lg:px-10">
-          <div className="relative z-10">
-            <AnimatePresence mode="wait">
-              {activeItem ? (
-                <motion.div
-                  key={activeItem.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 1.0, ease: "easeOut" }}
-                  className={`relative mx-auto overflow-hidden rounded-3xl shadow-[0_0_80px_rgba(0,0,0,0.6),0_0_60px_rgba(255,255,255,0.04)] transition-all duration-1000 ease-out
-            ${isPortraitActive
-              ? "max-h-[75vh] w-auto max-w-[min(90vw,500px)]"
-              : "max-h-[75vh] w-[min(90vw,1100px)]"
-            }`}
-                >
-                  <div className="absolute -inset-4 rounded-[2rem] bg-white/[0.04] blur-2xl -z-10" />
-
-                  <img
-                    src={activeItem.src}
-                    alt={getLocalizedText(activeItem.title, locale)}
-                    fetchPriority="high"
-                    decoding="async"
-                    onLoad={(event) => handleImageMetaLoad(event, activeItem.src)}
-                    className="h-full w-full object-contain transition-all duration-1000 ease-out"
-                  />
-
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-white/[0.06]" />
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-          </div>
-        </div>
+      {/* ── Ken Burns 图层堆叠 ── */}
+      <div className="absolute inset-0">
+        {featuredItems.map((item, idx) => (
+          <KenBurnsSlide
+            key={item.id}
+            src={item.src}
+            isActive={idx === activeIndex}
+          />
+        ))}
       </div>
 
+      {/* ── 渐变遮罩：底部文字可读性 ── */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/70" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-black/20" />
+
+      {/* ── 底部信息栏 ── */}
       <div className="absolute bottom-8 inset-x-0 z-20 px-6 sm:px-10">
         <div className="mx-auto flex max-w-7xl items-end justify-between">
+
+          {/* 左：帧计数 + 进度条 */}
           <div className="flex flex-col gap-3">
-            {featuredItems.length > 1 ? (
+            {featuredItems.length > 1 && activeItem ? (
               <>
                 <p className="text-[10px] uppercase tracking-[0.32em] text-white/60 font-light">
                   {String(activeIndex + 1).padStart(2, "0")} / {String(featuredItems.length).padStart(2, "0")}
@@ -135,13 +68,14 @@ export const HeroCover = memo(function HeroCover({ portfolios, copy, locale }) {
                     className="h-full bg-white"
                     initial={{ width: "0%" }}
                     animate={{ width: "100%" }}
-                    transition={{ duration: 6.2, ease: "linear" }}
+                    transition={{ duration: INTERVAL / 1000, ease: "linear" }}
                   />
                 </div>
               </>
             ) : null}
           </div>
 
+          {/* 中：滚动箭头 */}
           <motion.a
             href="#about"
             className="inline-flex flex-col items-center gap-3 text-white/78 transition hover:text-white"
@@ -157,6 +91,7 @@ export const HeroCover = memo(function HeroCover({ portfolios, copy, locale }) {
             </span>
           </motion.a>
 
+          {/* 右：帧索引 */}
           <div className="text-right">
             {activeItem ? (
               <p className="text-[10px] uppercase tracking-[0.32em] text-white/54">
@@ -169,3 +104,22 @@ export const HeroCover = memo(function HeroCover({ portfolios, copy, locale }) {
     </section>
   );
 });
+
+/* ── 单张 Ken Burns 幻灯片 ── */
+function KenBurnsSlide({ src, isActive }) {
+  return (
+    <div
+      className="absolute inset-0 transition-opacity duration-[1500ms] ease-in-out"
+      style={{ opacity: isActive ? 1 : 0, zIndex: isActive ? 1 : 0 }}
+    >
+      <div
+        className="absolute inset-0 bg-center bg-cover"
+        style={{
+          backgroundImage: `url(${src})`,
+          animation: isActive ? "kenBurns 10s linear forwards" : "none",
+          willChange: "transform",
+        }}
+      />
+    </div>
+  );
+}

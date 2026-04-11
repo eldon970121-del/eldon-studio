@@ -10,6 +10,7 @@ import {
 import { deleteImagesFromCloud, getStoragePathFromUrl } from "./services/cloudStorage";
 import { AuthModal } from "./components/auth/AuthModal";
 import { DetailUtilityBar, ImmersiveNavbar } from "./components/navigation/SiteNavigation";
+import { CommissionDrawer } from "./components/modals/CommissionDrawer";
 import { HeroCover } from "./components/sections/HeroCover";
 import { HeroSection } from "./components/sections/HeroSection";
 import { PracticeSection } from "./components/sections/PracticeSection";
@@ -1320,6 +1321,7 @@ export default function App() {
   
   // 🔥 新增：上传订单管理状态
   const [uploadingOrderNo, setUploadingOrderNo] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const [view, setView] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1656,6 +1658,7 @@ export default function App() {
           onToggleLocale={setLocale} onOpenAuth={() => setAuthModalOpen(true)} onSignOut={handleSignOut}
           isLabView={view === "lab"} isBookingView={view === "booking"}
           onOpenLab={onOpenLab}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
           onOpenBooking={() => { setSelectedPortfolioId(null); setView("booking"); window.scrollTo(0, 0); }}
           onOpenAdmin={() => { setSelectedPortfolioId(null); setView("admin"); window.scrollTo(0, 0); }}
           onGoHome={() => setView("home")}
@@ -1715,6 +1718,7 @@ export default function App() {
       {profileEditorOpen && <ProfileEditorModal profile={profile} copy={copy} locale={locale} initialProfile={initialProfile} onClose={() => setProfileEditorOpen(false)} onSave={async (nextProfile) => { if (!isAdmin) return; setProfile(toProfileShape(nextProfile)); setProfileEditorOpen(false); }} />}
       <AuthModal copy={copy} isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
       {confirmState && <ConfirmDialog title={confirmState.title} description={confirmState.description} copy={copy} onCancel={() => setConfirmState(null)} onConfirm={confirmState.onConfirm} />}
+      <CommissionDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} copy={copy} isAdmin={isAdmin} />
 
       {/* 🔥 新增：Lumina 传片中心 */}
       <AnimatePresence>

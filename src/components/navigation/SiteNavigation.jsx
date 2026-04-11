@@ -88,6 +88,7 @@ export function ImmersiveNavbar({
   onToggleBookingAdminMode,
   onOpenLab,
   onOpenBooking,
+  onOpenDrawer,
   onOpenAdmin,
   onGoHome,
   onOpenAuth,
@@ -151,7 +152,7 @@ export function ImmersiveNavbar({
 
           <button
             type="button"
-            onClick={onOpenBooking}
+            onClick={onOpenDrawer || onOpenBooking}
             className={"micro-button text-[11px] font-medium uppercase tracking-[0.34em] transition " + (
               isBookingView
                 ? isSolid
@@ -238,5 +239,18 @@ export function ImmersiveNavbar({
         </div>
       </div>
     </div>
+
+    {/* ── 右下角悬浮 Commission 按钮 ── */}
+    {onOpenDrawer ? (
+      <button
+        type="button"
+        onClick={onOpenDrawer}
+        className="fixed bottom-8 right-8 z-[105] flex items-center gap-2.5 rounded-full border border-white/14 bg-black/70 px-5 py-3 text-[10px] font-medium uppercase tracking-[0.36em] text-white/80 shadow-[0_8px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl transition hover:border-white/28 hover:text-white"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--site-accent)]" />
+        Commission
+      </button>
+    ) : null}
+  </div>
   );
 }

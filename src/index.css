@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Ken Burns 特效 ── */
+@keyframes kenBurns {
+  from { transform: scale(1.0) translate(0, 0); }
+  to   { transform: scale(1.08) translate(-1%, -1%); }
+}
+
+/* ── Commission Drawer ── */
+@keyframes drawerSlideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes drawerSlideOut {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
+}
+
 @layer base {
   :root {
     --site-bg-rgb: 25 26 31;
