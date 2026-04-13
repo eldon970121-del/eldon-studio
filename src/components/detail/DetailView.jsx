@@ -211,10 +211,207 @@ function PortfolioPhotoCard({ image, index, total, isAdmin, editMode, onOpen, on
   );
 }
 
+// ─── Commission FAB + Drawer ───────────────────────────────────────────────────
+
+function CommissionFAB({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Open commission drawer"
+      style={{
+        position: "fixed",
+        right: "40px",
+        bottom: "40px",
+        zIndex: 50,
+        background: "transparent",
+        border: "none",
+        padding: "0.5rem 0",
+        cursor: "pointer",
+        writingMode: "vertical-lr",
+        textOrientation: "mixed",
+        color: "#fff",
+        mixBlendMode: "difference",
+        fontSize: "0.6rem",
+        letterSpacing: "0.4em",
+        textTransform: "uppercase",
+        fontFamily: "'Courier New', monospace",
+        opacity: 0.9,
+        transition: "letter-spacing 0.3s ease, opacity 0.3s ease",
+        lineHeight: 1,
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.letterSpacing = "0.6em";
+        e.currentTarget.style.opacity = "1";
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.letterSpacing = "0.4em";
+        e.currentTarget.style.opacity = "0.9";
+      }}
+    >
+      COMMISSION / 委托
+    </button>
+  );
+}
+
+function CommissionQRDrawer({ isOpen, onClose, isZh }) {
+  // body scroll lock
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isOpen]);
+
+  // ESC to close
+  useEffect(() => {
+    function onKey(e) { if (e.key === "Escape") onClose(); }
+    if (isOpen) window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
+  return (
+    <>
+      {/* Mask */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0, zIndex: 200,
+          background: "rgba(0,0,0,0.6)",
+          backdropFilter: "blur(6px)",
+          WebkitBackdropFilter: "blur(6px)",
+          opacity: isOpen ? 1 : 0,
+          pointerEvents: isOpen ? "auto" : "none",
+          transition: "opacity 0.4s ease",
+        }}
+      />
+
+      {/* Drawer panel */}
+      <div
+        style={{
+          position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 201,
+          width: "clamp(320px, 38vw, 520px)",
+          background: "rgba(10, 10, 10, 0.88)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          borderLeft: "1px solid rgba(255,255,255,0.06)",
+          boxShadow: "-32px 0 80px rgba(0,0,0,0.7)",
+          transform: isOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "2rem",
+        }}
+      >
+        {/* Close button */}
+        <div style={{ width: "100%", display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={onClose}
+            style={{
+              width: "2rem", height: "2rem",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "50%",
+              background: "transparent",
+              color: "rgba(255,255,255,0.4)",
+              cursor: "pointer",
+              transition: "color 0.2s, border-color 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#fff"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.4)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Center: QR + copy */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2rem", flex: 1, justifyContent: "center" }}>
+          {/* Eyebrow */}
+          <p style={{
+            fontFamily: "'Courier New', monospace",
+            fontSize: "0.55rem",
+            letterSpacing: "0.45em",
+            textTransform: "uppercase",
+            color: "rgba(255,255,255,0.2)",
+          }}>
+            Lumina · Private Studio
+          </p>
+
+          {/* QR code box */}
+          <div style={{
+            width: "200px", height: "200px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "4px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(255,255,255,0.03)",
+            position: "relative",
+          }}>
+            {/* Corner accents */}
+            {[
+              { top: -1, left: -1, borderTop: "2px solid rgba(255,255,255,0.4)", borderLeft: "2px solid rgba(255,255,255,0.4)" },
+              { top: -1, right: -1, borderTop: "2px solid rgba(255,255,255,0.4)", borderRight: "2px solid rgba(255,255,255,0.4)" },
+              { bottom: -1, left: -1, borderBottom: "2px solid rgba(255,255,255,0.4)", borderLeft: "2px solid rgba(255,255,255,0.4)" },
+              { bottom: -1, right: -1, borderBottom: "2px solid rgba(255,255,255,0.4)", borderRight: "2px solid rgba(255,255,255,0.4)" },
+            ].map((s, i) => (
+              <span key={i} style={{ position: "absolute", width: "16px", height: "16px", ...s }} />
+            ))}
+            {/* QR placeholder grid icon */}
+            <svg width="64" height="64" viewBox="0 0 48 48" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.2">
+              <rect x="6" y="6" width="14" height="14" rx="1" />
+              <rect x="28" y="6" width="14" height="14" rx="1" />
+              <rect x="6" y="28" width="14" height="14" rx="1" />
+              <rect x="10" y="10" width="6" height="6" fill="rgba(255,255,255,0.2)" stroke="none" />
+              <rect x="32" y="10" width="6" height="6" fill="rgba(255,255,255,0.2)" stroke="none" />
+              <rect x="10" y="32" width="6" height="6" fill="rgba(255,255,255,0.2)" stroke="none" />
+              <rect x="28" y="28" width="6" height="6" fill="rgba(255,255,255,0.12)" stroke="none" />
+              <rect x="36" y="28" width="6" height="6" fill="rgba(255,255,255,0.12)" stroke="none" />
+              <rect x="28" y="36" width="6" height="6" fill="rgba(255,255,255,0.12)" stroke="none" />
+              <rect x="36" y="36" width="6" height="6" fill="rgba(255,255,255,0.12)" stroke="none" />
+            </svg>
+          </div>
+
+          {/* Caption */}
+          <p style={{
+            fontFamily: "'Courier New', monospace",
+            fontSize: "0.6rem",
+            letterSpacing: "0.2em",
+            color: "rgba(255,255,255,0.3)",
+            textAlign: "center",
+            lineHeight: 2,
+            maxWidth: "200px",
+          }}>
+            {isZh
+              ? "扫描进入私属工作台\n开启影像委托"
+              : "Scan to enter private studio\nand begin your commission"}
+          </p>
+        </div>
+
+        {/* Bottom: brand mark */}
+        <p style={{
+          fontFamily: "'Courier New', monospace",
+          fontSize: "0.5rem",
+          letterSpacing: "0.4em",
+          color: "rgba(255,255,255,0.1)",
+          textTransform: "uppercase",
+        }}>
+          Eldon Studio · Lumina
+        </p>
+      </div>
+    </>
+  );
+}
+
 // ─── Main export ───────────────────────────────────────────────────────────────
 export function DetailView({ portfolio, isAdmin, onBack, onEditPortfolio, onRequestDeletePortfolio, onUploadImages, onSetCover, onDeleteImage, copy, locale }) {
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [editMode, setEditMode] = useState(false);
+  const [isQRDrawerOpen, setIsQRDrawerOpen] = useState(false);
   const galleryRef = useRef(null);
   const localizedTitle = getLocalizedText(portfolio.title, locale);
   const localizedDescription = getLocalizedText(portfolio.description, locale);
@@ -354,7 +551,7 @@ export function DetailView({ portfolio, isAdmin, onBack, onEditPortfolio, onRequ
         </p>
         <motion.button
           type="button"
-          onClick={onBack}
+          onClick={() => setIsQRDrawerOpen(true)}
           className="group relative inline-flex items-center gap-5"
           whileHover="hover"
         >
@@ -391,6 +588,12 @@ export function DetailView({ portfolio, isAdmin, onBack, onEditPortfolio, onRequ
           }}
         />
       )}
+
+      {/* ── Commission FAB ──────────────────────────────────────────────── */}
+      <CommissionFAB onClick={() => setIsQRDrawerOpen(true)} />
+
+      {/* ── Commission QR Drawer ────────────────────────────────────────── */}
+      <CommissionQRDrawer isOpen={isQRDrawerOpen} onClose={() => setIsQRDrawerOpen(false)} isZh={isZh} />
     </div>
   );
 }
