@@ -65,15 +65,22 @@ export async function analyzeAestheticsDeconstruct(imageFile) {
       body: formData,
     });
 
+    if (res.status === 403) {
+      const body = await res.json().catch(() => ({}));
+      const err = new Error(body.message || '今日试镜次数已达上限');
+      err.code = 'QUOTA_EXCEEDED';
+      throw err;
+    }
+
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    // Validate required fields exist
     if (!data.colors || !data.lighting || !data.composition || !data.typography) {
       throw new Error('incomplete response');
     }
     return data;
-  } catch {
-    // Graceful fallback to mock — backend not yet implemented
+  } catch (err) {
+    if (err.code === 'QUOTA_EXCEEDED') throw err; // 向上传递，不 fallback
+    // 其他错误（网络、后端未实现）降级到 mock
     return buildMockResult(null);
   }
 }

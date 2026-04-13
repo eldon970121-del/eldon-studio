@@ -753,6 +753,8 @@ function MicroView({ images, activeIndex, activeMicroTab, setActiveMicroTab, img
 // ══════════════════════════════════════════════════════
 // Main export
 // ══════════════════════════════════════════════════════
+const API_BASE = import.meta.env.VITE_LUMINA_API || 'https://lumina-server-production.up.railway.app';
+
 export function AestheticsLab({ initialFiles, onExit }) {
   const [images, setImages]               = useState([]);
   const [phase, setPhase]                 = useState('upload');
@@ -760,6 +762,22 @@ export function AestheticsLab({ initialFiles, onExit }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeMicroTab, setActiveMicroTab]     = useState('lighting');
   const [imgSize, setImgSize]             = useState({ w: 0, h: 0 });
+
+  // 配额状态
+  const [quota, setQuota]           = useState({ limit: 2, used: 0, remaining: 2 });
+  const [quotaModal, setQuotaModal] = useState(false);
+
+  // 初始化：拉取配额
+  useEffect(() => {
+    const token = localStorage.getItem('lumina_token');
+    if (!token) return;
+    fetch(`${API_BASE}/api/ai/quota`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.success) setQuota({ limit: d.limit, used: d.used, remaining: d.remaining }); })
+      .catch(() => {});
+  }, []);
 
   // Auto-start if files passed from homepage dropzone
   useEffect(() => {
@@ -770,6 +788,18 @@ export function AestheticsLab({ initialFiles, onExit }) {
   }, []);
 
   function handleFiles(files) {
+    // 登录守卫
+    const token = localStorage.getItem('lumina_token');
+    if (!token) {
+      alert('请先登录以开启 Lumina Vision');
+      return;
+    }
+    // 配额守卫（前端预检）
+    if (quota.remaining <= 0) {
+      setQuotaModal(true);
+      return;
+    }
+
     const newImages = Array.from(files).map(file => ({
       id: `img-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
       file,
@@ -778,6 +808,8 @@ export function AestheticsLab({ initialFiles, onExit }) {
     }));
     setImages(newImages);
     setPhase('developing');
+    // 乐观扣减前端配额
+    setQuota(q => ({ ...q, used: q.used + 1, remaining: Math.max(0, q.remaining - 1) }));
     setTimeout(() => setPhase('ready'), 2200);
   }
 
@@ -846,7 +878,18 @@ export function AestheticsLab({ initialFiles, onExit }) {
         <AnimatePresence mode="wait">
           {phase === 'upload' && (
             <motion.div key="upload" {...FADE}>
-              <UploadZone onFiles={handleFiles} onDemo={handleDemoLoad} />
+              {/* 剩余次数提示 */}
+              <p className="text-center mb-3 text-[10px] tracking-[0.2em]"
+                style={{ color: quota.remaining === 0 ? 'rgba(255,100,100,0.6)' : 'rgba(255,255,255,0.2)' }}>
+                {quota.remaining === 0
+                  ? '今日次数已用完，预约拍摄解锁更多'
+                  : `剩余试镜次数：${quota.remaining} 次`}
+              </p>
+              <UploadZone
+                onFiles={quota.remaining === 0 ? () => setQuotaModal(true) : handleFiles}
+                onDemo={handleDemoLoad}
+                disabled={quota.remaining === 0}
+              />
             </motion.div>
           )}
 
@@ -882,6 +925,52 @@ export function AestheticsLab({ initialFiles, onExit }) {
           )}
         </AnimatePresence>
       </div>
+
+      {/* 配额耗尽弹窗 */}
+      {quotaModal && (
+        <div
+          onClick={() => setQuotaModal(false)}
+          style={{
+            position: 'absolute', inset: 0, zIndex: 50,
+            background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: 'min(400px, 90%)',
+              background: 'linear-gradient(160deg, #111 0%, #0d0d0d 100%)',
+              border: '1px solid rgba(212,175,55,0.2)',
+              borderRadius: '1.5rem',
+              padding: '2.5rem 2rem',
+              textAlign: 'center',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem',
+            }}
+          >
+            <p style={{ fontFamily: "'Courier New', monospace", fontSize: '0.55rem', letterSpacing: '0.4em', textTransform: 'uppercase', color: 'rgba(212,175,55,0.5)' }}>
+              Lumina Vision
+            </p>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 300, color: 'rgba(255,255,255,0.88)', letterSpacing: '-0.02em' }}>
+              光影已满载
+            </h3>
+            <p style={{ fontSize: '0.8rem', lineHeight: 1.85, color: 'rgba(255,255,255,0.4)', maxWidth: '280px' }}>
+              每位用户每日仅限 {quota.limit} 次试镜，您可以预约正式拍摄以获得无限次高定方案共创。
+            </p>
+            <button
+              onClick={() => setQuotaModal(false)}
+              style={{
+                marginTop: '0.5rem', padding: '0.5rem 1.5rem',
+                border: '1px solid rgba(212,175,55,0.3)', borderRadius: '9999px',
+                background: 'transparent', color: 'rgba(212,175,55,0.7)',
+                fontSize: '0.65rem', letterSpacing: '0.25em', textTransform: 'uppercase', cursor: 'pointer',
+              }}
+            >
+              知道了
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
