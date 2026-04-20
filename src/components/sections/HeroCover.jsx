@@ -7,15 +7,17 @@ function getFeaturedCarouselItems(portfolios) {
       .filter((image) => image?.url)
       .map((image, index) => ({
         id: `${portfolio.id}-${image.id ?? index}`,
+        portfolioId: portfolio.id,
         src: image.url,
         title: portfolio.title,
+        narrative: portfolio.narrative || null,
         imageIndex: index + 1,
         imageCount: portfolio.images.length,
       })),
   );
 }
 
-export const HeroCover = memo(function HeroCover({ portfolios, copy, locale }) {
+export const HeroCover = memo(function HeroCover({ portfolios, copy, locale, onOpenDetail }) {
   const featuredItems = useMemo(() => getFeaturedCarouselItems(portfolios), [portfolios]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [visible, setVisible] = useState(true);
@@ -248,9 +250,47 @@ export const HeroCover = memo(function HeroCover({ portfolios, copy, locale }) {
               letterSpacing: "0.25em",
               color: "rgba(255,255,255,0.2)",
               textTransform: "uppercase",
+              marginBottom: "2rem",
             }}>
-              {copy.hero.selectedFrame} {activeItem.imageIndex} / {activeItem.imageCount}
+              {activeItem.narrative
+                ? `${activeItem.narrative} · ${copy.hero.selectedFrame} ${activeItem.imageIndex} / ${activeItem.imageCount}`
+                : `${copy.hero.selectedFrame} ${activeItem.imageIndex} / ${activeItem.imageCount}`}
             </p>
+          )}
+
+          {/* DISCOVER SERIES CTA */}
+          {activeItem && onOpenDetail && (
+            <button
+              onClick={() => onOpenDetail(activeItem.portfolioId)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.6rem",
+                background: "transparent",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                fontFamily: "'Courier New', monospace",
+                fontSize: "0.6rem",
+                letterSpacing: "0.35em",
+                color: "rgba(255,255,255,0.45)",
+                textTransform: "uppercase",
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.querySelector('.cta-arrow').style.transform = 'translateX(4px)';
+                e.currentTarget.style.color = 'rgba(255,255,255,0.75)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.querySelector('.cta-arrow').style.transform = 'translateX(0)';
+                e.currentTarget.style.color = 'rgba(255,255,255,0.45)';
+              }}
+            >
+              <span>{locale === 'zh' ? '探索该系列' : 'Discover Series'}</span>
+              <span
+                className="cta-arrow"
+                style={{ transition: "transform 0.3s ease", display: "inline-block" }}
+              >→</span>
+            </button>
           )}
         </div>
 

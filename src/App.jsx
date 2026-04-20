@@ -1698,7 +1698,7 @@ export default function App() {
         </React.Suspense>
       ) : (
         <>
-          <HeroCover portfolios={portfolios} profile={profile} copy={copy} locale={locale} />
+          <HeroCover portfolios={portfolios} profile={profile} copy={copy} locale={locale} onOpenDetail={setSelectedPortfolioId} />
           <HeroSection profile={profile} isAdmin={isAdmin} onEditProfile={() => isAdmin && setProfileEditorOpen(true)} copy={copy} locale={locale} practiceRows={practiceRows} manifestoItems={manifestoData} luminaUrl={LUMINA_URL} />
           <PracticeSection copy={copy} locale={locale} />
           <StorySection portfolios={portfolios} copy={copy} locale={locale} />
