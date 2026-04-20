@@ -445,46 +445,54 @@ function MacroPanel({ images }) {
   const social = SOCIAL_CONTENT[socialTab];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
+      {/* 序列标识 — 双语解耦 */}
       <div>
-        <p className="text-[8px] uppercase tracking-[0.4em] text-white/20 mb-1">Vision Sequence</p>
-        <p className="text-base font-serif tracking-[0.18em]" style={{ color: GOLD }}>SEQUENCE: 01</p>
+        <p style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(212,175,55,0.45)', marginBottom: 4 }}>Vision Sequence</p>
+        <p style={{ fontSize: 15, fontFamily: 'var(--font-display, serif)', letterSpacing: '0.18em', color: GOLD, fontWeight: 300 }}>序列：01</p>
       </div>
+
+      {/* 情绪基调 — 双语解耦 */}
       <div>
-        <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 mb-2.5">情绪基调</p>
+        <p style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', marginBottom: 10 }}>Emotional Tone</p>
+        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>情绪基调</p>
         <div className="flex flex-wrap gap-1.5">
           {moods.map(m => (
-            <span key={m} className="text-[9px] px-2.5 py-1 rounded-full"
-              style={{ border: '1px solid rgba(201,168,76,0.35)', color: 'rgba(201,168,76,0.7)' }}>
+            <span key={m} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 999, border: '1px solid rgba(201,168,76,0.35)', color: 'rgba(201,168,76,0.75)' }}>
               {m}
             </span>
           ))}
         </div>
       </div>
+
+      {/* 视觉一致性 — 双语解耦 */}
       <div>
+        <p style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', marginBottom: 4 }}>Visual Coherence</p>
         <div className="flex justify-between mb-2">
-          <p className="text-[8px] uppercase tracking-[0.3em] text-white/20">视觉一致性</p>
-          <p className="text-[10px] font-mono" style={{ color: GOLD }}>{score} / 10</p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>视觉一致性</p>
+          <p style={{ fontSize: 11, fontFamily: 'monospace', color: GOLD }}>{score} / 10</p>
         </div>
         <div className="h-px overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-          <motion.div initial={{ width:0 }} animate={{ width:`${parseFloat(score)*10}%` }}
-            transition={{ duration:1.4, ease:'easeOut' }} className="h-full"
-            style={{ background:`linear-gradient(90deg, #c9a84c, #f5e17a)` }} />
+          <motion.div initial={{ width: 0 }} animate={{ width: `${parseFloat(score) * 10}%` }}
+            transition={{ duration: 1.4, ease: 'easeOut' }} className="h-full"
+            style={{ background: `linear-gradient(90deg, #c9a84c, #f5e17a)` }} />
         </div>
       </div>
 
-      {/* Social strategy with tab switcher */}
-      <div className="border-l-[1px] pl-3" style={{ borderColor:'rgba(201,168,76,0.2)' }}>
-        <p className="text-[8px] uppercase tracking-[0.25em] text-white/20 mb-2.5">社交发布策略</p>
+      {/* 社交发布策略 — 双语解耦 */}
+      <div className="border-l pl-3" style={{ borderColor: 'rgba(201,168,76,0.2)' }}>
+        <p style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', marginBottom: 4 }}>Social Strategy</p>
+        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 12 }}>社交发布策略</p>
 
         {/* Tab bar */}
-        <div className="flex gap-3 mb-4">
-          {[{ id:'xhs', label:'小红书' }, { id:'douyin', label:'抖音' }].map(t => (
+        <div className="flex gap-3 mb-5">
+          {[{ id: 'xhs', label: '小红书' }, { id: 'douyin', label: '抖音' }].map(t => (
             <button key={t.id} onClick={() => setSocialTab(t.id)}
-              className="text-[9px] tracking-[0.15em] transition-colors duration-200 pb-0.5"
               style={{
+                fontSize: 11, letterSpacing: '0.1em', paddingBottom: 2, background: 'none', border: 'none', cursor: 'pointer',
                 color: socialTab === t.id ? '#c9a84c' : 'rgba(255,255,255,0.25)',
                 borderBottom: socialTab === t.id ? '1px solid rgba(201,168,76,0.5)' : '1px solid transparent',
+                transition: 'color 0.2s',
               }}>
               {t.label}
             </button>
@@ -493,20 +501,20 @@ function MacroPanel({ images }) {
 
         <AnimatePresence mode="wait">
           <motion.div key={socialTab}
-            initial={{ opacity:0, y:4 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-4 }}
-            transition={{ duration:0.25 }}
-            className="space-y-3">
+            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-5">
             <div>
-              <p className="text-[7px] uppercase tracking-[0.35em] mb-1" style={{ color:'rgba(201,168,76,0.5)' }}>TITLE</p>
-              <p style={{ fontSize:10, color:'#d4d4d4', lineHeight:1.7, letterSpacing:'0.02em' }}>{social.title}</p>
+              <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.5)', marginBottom: 6 }}>TITLE</p>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 1.8, letterSpacing: '0.02em' }}>{social.title}</p>
             </div>
             <div>
-              <p className="text-[7px] uppercase tracking-[0.35em] mb-1" style={{ color:'rgba(201,168,76,0.5)' }}>COPYWRITING</p>
-              <p style={{ fontSize:9, color:'#a0a0a0', lineHeight:1.8, letterSpacing:'0.02em', whiteSpace:'pre-line' }}>{social.copy}</p>
+              <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.5)', marginBottom: 6 }}>COPYWRITING</p>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.85, letterSpacing: '0.02em', whiteSpace: 'pre-line' }}>{social.copy}</p>
             </div>
             <div>
-              <p className="text-[7px] uppercase tracking-[0.35em] mb-1" style={{ color:'rgba(201,168,76,0.5)' }}>BGM</p>
-              <p style={{ fontSize:9, color:'#a0a0a0', lineHeight:1.7, letterSpacing:'0.02em' }}>{social.bgm}</p>
+              <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.5)', marginBottom: 6 }}>BGM</p>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.8, letterSpacing: '0.02em' }}>{social.bgm}</p>
             </div>
           </motion.div>
         </AnimatePresence>
@@ -520,27 +528,46 @@ function MacroPanel({ images }) {
 // ══════════════════════════════════════════════════════
 function Filmstrip({ images, activeIndex, onSelect }) {
   return (
-    <div className="flex gap-4 overflow-x-auto py-2 scrollbar-none">
-      {images.map((img, i) => (
-        <motion.button
-          key={img.id}
-          onClick={() => onSelect(i)}
-          className="relative flex-shrink-0 overflow-hidden rounded-sm"
-          style={{ width: 72, height: 68 }}
-          whileHover={{ filter: 'brightness(0.75)' }}
-          transition={{ duration: 0.2 }}
-        >
-          <img
-            src={img.url}
-            alt=""
-            className="w-full h-full object-cover transition-all duration-300"
-            style={{ filter: i === activeIndex ? 'brightness(1)' : 'brightness(0.4)' }}
-          />
-          {i === activeIndex && (
-            <div className="absolute inset-0" style={{ boxShadow:`inset 0 0 0 1px ${GOLD}` }} />
-          )}
-        </motion.button>
-      ))}
+    <div className="filmstrip-container" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '6px 0', scrollbarWidth: 'none' }}>
+      {images.map((img, i) => {
+        const isActive = i === activeIndex;
+        return (
+          <button
+            key={img.id}
+            onClick={() => onSelect(i)}
+            style={{
+              position: 'relative',
+              flexShrink: 0,
+              width: 72,
+              height: 68,
+              borderRadius: 3,
+              overflow: 'hidden',
+              border: isActive ? `1px solid rgba(255,255,255,0.3)` : '1px solid transparent',
+              padding: 0,
+              cursor: 'pointer',
+              background: 'none',
+              transition: 'border-color 0.3s ease',
+            }}
+          >
+            <img
+              src={img.url}
+              alt=""
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+                opacity: isActive ? 1 : 0.4,
+                filter: isActive ? 'grayscale(0%)' : 'grayscale(100%)',
+                transition: 'opacity 0.3s ease, filter 0.3s ease',
+              }}
+            />
+            {isActive && (
+              <div style={{ position: 'absolute', inset: 0, boxShadow: `inset 0 0 0 1px ${GOLD}` }} />
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -555,7 +582,7 @@ function MacroView({ images, onEnterMicro, onSelectHero, heroIndex = 0 }) {
       {/* Main row: hero 2/3 + panel 1/3 */}
       <div className="flex flex-1 gap-6 overflow-hidden">
 
-        {/* Left 2/3: hero image */}
+        {/* Left 2/3: hero image — 扩容，减少黑边 */}
         <div className="flex-1 relative overflow-hidden" style={{ borderRadius: 4, boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 4px 20px rgba(0,0,0,0.5)' }}>
           {/* Ambient blur background from other images */}
           {images.slice(1).map((img) => (
@@ -565,16 +592,16 @@ function MacroView({ images, onEnterMicro, onSelectHero, heroIndex = 0 }) {
             </div>
           ))}
 
-          {/* Hero image */}
+          {/* Hero image — hover scale 呼吸感 */}
           <motion.div
             layoutId={`img-${hero.id}`}
             className="absolute inset-0 cursor-pointer"
             style={{ zIndex: 1 }}
             onClick={() => onEnterMicro(0)}
-            whileHover={{ scale: 1.008 }}
-            transition={{ duration: 0.4 }}
+            whileHover={{ scale: 1.02 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
-            <img src={hero.url} alt="" className="w-full h-full object-cover" />
+            <img src={hero.url} alt="" className="w-full h-full object-cover" style={{ display: 'block' }} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
           </motion.div>
 
@@ -611,7 +638,7 @@ function MacroView({ images, onEnterMicro, onSelectHero, heroIndex = 0 }) {
         </div>
 
         {/* Right 1/3: data panel */}
-        <div className="w-60 xl:w-64 flex-shrink-0 flex flex-col justify-center py-4">
+        <div className="w-64 xl:w-72 flex-shrink-0 flex flex-col justify-start py-4 overflow-y-auto">
           <MacroPanel images={images} />
         </div>
       </div>
