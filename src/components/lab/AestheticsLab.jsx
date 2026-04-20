@@ -425,24 +425,60 @@ function TypographyPanel({ typography }) {
   );
 }
 
-const SOCIAL_CONTENT = {
-  xhs: {
-    title: '旷野回响｜硬光雕刻的生命力',
-    copy: '利用大面积留白压暗情绪。正文强调呼吸感与剥离感，引导用户关注画面中的风与光照。\n\nHashtag: #电影感摄影 #情绪肖像 #光影叙事',
-    bgm: 'Hans Zimmer 风格低频氛围乐 / 空旷风声白噪音',
+const DEMO_SOCIAL_STRATEGIES = {
+  xiaohongshu: {
+    title: '骨相重塑 | 拒绝讨好感的光影生命力',
+    copywriting: `硬光不是残忍，是诚实。\n\n这张照片里没有柔焦，没有磨皮，只有光与骨骼之间最真实的对话。\n\n我们习惯了"好看"，却忘了"有力量"是什么感觉。\n\n当镜头对准你的时候，我想拍的不是你的样子，而是你的态度。`,
+    hashtags: '#电影感摄影 #情绪肖像 #高定审美 #光影叙事 #黑白人像 #摄影美学 #Eldon Studio',
   },
   douyin: {
-    title: '一帧光影，一段无声叙事',
-    copy: '开场 0.5s 静帧留白，配合低频音效建立情绪张力。文案简短有力，强调"反差"与"克制"。\n\nHashtag: #电影感 #摄影师 #光影美学',
-    bgm: '极简钢琴 + 低沉弦乐 / 环境白噪音',
+    title: '别再拍无聊的糖水片了，看看什么是降维打击',
+    copywriting: `同样是人像，差距在哪？\n光。\n一张照片能让人停下来，靠的不是滤镜，是光影结构。\n想知道你的照片缺什么？评论区告诉我。`,
+    hashtags: '#氛围感 #高级感人像 #摄影日常 #人像摄影 #光影美学 #摄影师',
   },
 };
 
-function MacroPanel({ images }) {
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      style={{
+        marginTop: 10,
+        background: 'none',
+        border: 'none',
+        cursor: 'pointer',
+        padding: 0,
+        fontSize: 10,
+        letterSpacing: '0.25em',
+        textTransform: 'uppercase',
+        color: copied ? 'rgba(126,207,155,0.8)' : 'rgba(212,175,55,0.45)',
+        opacity: copied ? 0.7 : 1,
+        transition: 'color 0.2s, opacity 0.2s',
+        fontFamily: "'Courier New', monospace",
+      }}
+    >
+      {copied ? '✓ COPIED' : '[ COPY / 复制文案 ]'}
+    </button>
+  );
+}
+
+function MacroPanel({ images, socialStrategies }) {
   const score = (8.2 + images.length * 0.1).toFixed(1);
   const moods = ['压抑', '力量感', '克制'];
-  const [socialTab, setSocialTab] = useState('xhs');
-  const social = SOCIAL_CONTENT[socialTab];
+  const [socialTab, setSocialTab] = useState('xiaohongshu');
+  const strategies = socialStrategies || DEMO_SOCIAL_STRATEGIES;
+  const social = strategies[socialTab];
+
+  function buildCopyText(s) {
+    return `${s.title}\n\n${s.copywriting}\n\n${s.hashtags}`;
+  }
 
   return (
     <div className="space-y-7">
@@ -479,14 +515,14 @@ function MacroPanel({ images }) {
         </div>
       </div>
 
-      {/* 社交发布策略 — 双语解耦 */}
+      {/* 社交发布策略 — 双语解耦 + 复制按钮 */}
       <div className="border-l pl-3" style={{ borderColor: 'rgba(201,168,76,0.2)' }}>
         <p style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', marginBottom: 4 }}>Social Strategy</p>
         <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 12 }}>社交发布策略</p>
 
         {/* Tab bar */}
         <div className="flex gap-3 mb-5">
-          {[{ id: 'xhs', label: '小红书' }, { id: 'douyin', label: '抖音' }].map(t => (
+          {[{ id: 'xiaohongshu', label: '小红书' }, { id: 'douyin', label: '抖音' }].map(t => (
             <button key={t.id} onClick={() => setSocialTab(t.id)}
               style={{
                 fontSize: 11, letterSpacing: '0.1em', paddingBottom: 2, background: 'none', border: 'none', cursor: 'pointer',
@@ -500,23 +536,26 @@ function MacroPanel({ images }) {
         </div>
 
         <AnimatePresence mode="wait">
-          <motion.div key={socialTab}
-            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.25 }}
-            className="space-y-5">
-            <div>
-              <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.5)', marginBottom: 6 }}>TITLE</p>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 1.8, letterSpacing: '0.02em' }}>{social.title}</p>
-            </div>
-            <div>
-              <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.5)', marginBottom: 6 }}>COPYWRITING</p>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.85, letterSpacing: '0.02em', whiteSpace: 'pre-line' }}>{social.copy}</p>
-            </div>
-            <div>
-              <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.5)', marginBottom: 6 }}>BGM</p>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.8, letterSpacing: '0.02em' }}>{social.bgm}</p>
-            </div>
-          </motion.div>
+          {social && (
+            <motion.div key={socialTab}
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.25 }}
+              className="space-y-5">
+              <div>
+                <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.5)', marginBottom: 6 }}>TITLE</p>
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 1.8, letterSpacing: '0.02em' }}>{social.title}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.5)', marginBottom: 6 }}>COPYWRITING</p>
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.85, letterSpacing: '0.02em', whiteSpace: 'pre-line' }}>{social.copywriting}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.5)', marginBottom: 6 }}>HASHTAGS</p>
+                <p style={{ fontSize: 13, color: 'rgba(212,175,55,0.6)', lineHeight: 1.8, letterSpacing: '0.02em' }}>{social.hashtags}</p>
+              </div>
+              <CopyButton text={buildCopyText(social)} />
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
     </div>
@@ -575,7 +614,7 @@ function Filmstrip({ images, activeIndex, onSelect }) {
 // ══════════════════════════════════════════════════════
 // MacroView — single hero + ambient bg + pinned filmstrip
 // ══════════════════════════════════════════════════════
-function MacroView({ images, onEnterMicro, onSelectHero, heroIndex = 0 }) {
+function MacroView({ images, onEnterMicro, onSelectHero, heroIndex = 0, socialStrategies }) {
   const hero = images[heroIndex];
   return (
     <div className="flex flex-col h-full" style={{ minHeight: 520 }}>
@@ -639,7 +678,7 @@ function MacroView({ images, onEnterMicro, onSelectHero, heroIndex = 0 }) {
 
         {/* Right 1/3: data panel */}
         <div className="w-64 xl:w-72 flex-shrink-0 flex flex-col justify-start py-4 overflow-y-auto">
-          <MacroPanel images={images} />
+          <MacroPanel images={images} socialStrategies={socialStrategies} />
         </div>
       </div>
 
@@ -789,6 +828,8 @@ export function AestheticsLab({ initialFiles, onExit }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeMicroTab, setActiveMicroTab]     = useState('lighting');
   const [imgSize, setImgSize]             = useState({ w: 0, h: 0 });
+  const [socialStrategies, setSocialStrategies] = useState(null);
+  const [isResetting, setIsResetting]     = useState(false);
 
   // 配额状态
   const [quota, setQuota]           = useState({ limit: 2, used: 0, remaining: 2 });
@@ -834,6 +875,7 @@ export function AestheticsLab({ initialFiles, onExit }) {
       result: null,
     }));
     setImages(newImages);
+    setSocialStrategies(null);
     setPhase('developing');
     // 乐观扣减前端配额
     setQuota(q => ({ ...q, used: q.used + 1, remaining: Math.max(0, q.remaining - 1) }));
@@ -843,8 +885,21 @@ export function AestheticsLab({ initialFiles, onExit }) {
   function handleDemoLoad() {
     const demoImages = PLACEHOLDER_IMAGES.map(p => ({ ...p, file: null, result: null }));
     setImages(demoImages);
+    setSocialStrategies(DEMO_SOCIAL_STRATEGIES);
     setPhase('developing');
     setTimeout(() => setPhase('ready'), 2200);
+  }
+
+  function handleReset() {
+    setIsResetting(true);
+    setTimeout(() => {
+      setCurrentView('macro');
+      setPhase('upload');
+      setImages([]);
+      setSocialStrategies(null);
+      setActiveImageIndex(0);
+      setIsResetting(false);
+    }, 350);
   }
 
   function handleEnterMicro(index) {
@@ -884,7 +939,7 @@ export function AestheticsLab({ initialFiles, onExit }) {
           {phase === 'ready' && (
             <div className="flex items-center gap-3">
               <button
-                onClick={() => { setCurrentView('macro'); setPhase('upload'); setImages([]); }}
+                onClick={handleReset}
                 className="text-[9px] uppercase tracking-[0.3em] text-white/20 hover:text-white/50 transition-colors"
               >
                 重置
@@ -901,7 +956,7 @@ export function AestheticsLab({ initialFiles, onExit }) {
       </div>
 
       {/* Body */}
-      <div className="relative p-6">
+      <div className="relative p-6" style={{ opacity: isResetting ? 0 : 1, transition: 'opacity 0.35s ease' }}>
         <AnimatePresence mode="wait">
           {phase === 'upload' && (
             <motion.div key="upload" {...FADE}>
@@ -931,7 +986,7 @@ export function AestheticsLab({ initialFiles, onExit }) {
               <AnimatePresence mode="wait">
                 {currentView === 'macro' ? (
                   <motion.div key="macro" {...FADE} className="h-full">
-                    <MacroView images={images} heroIndex={activeImageIndex} onEnterMicro={handleEnterMicro} onSelectHero={(i) => { setActiveImageIndex(i); }} />
+                    <MacroView images={images} heroIndex={activeImageIndex} onEnterMicro={handleEnterMicro} onSelectHero={(i) => { setActiveImageIndex(i); }} socialStrategies={socialStrategies} />
                   </motion.div>
                 ) : (
                   <motion.div key="micro" {...FADE} className="h-full">
